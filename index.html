@@ -1,0 +1,2494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Planner</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F7F6F3;--sf:#fff;--s2:#F2F1EE;--s3:#ECEAE5;
+  --b1:#E4E2DC;--b2:#CCC9C0;
+  --tx:#1A1917;--t2:#6B6960;--t3:#A09E96;
+  --teal:#0F6E56;--tm:#1D9E75;--tl:#E1F5EE;
+  --blue:#185FA5;--bl:#E6F1FB;
+  --amber:#BA7517;--al:#FAEEDA;
+  --coral:#993C1D;--cl:#FAECE7;
+  --purple:#534AB7;--pl:#EEEDFE;
+  --red:#E24B4A;--rl:#FCEBEB;
+  --green:#3B6D11;--gl:#EAF3DE;
+  --r:10px;--rsm:6px;--rlg:14px;
+  --sh:0 1px 3px rgba(0,0,0,.07),0 4px 12px rgba(0,0,0,.04);
+  --shm:0 4px 20px rgba(0,0,0,.11),0 1px 4px rgba(0,0,0,.06);
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;line-height:1.5}
+
+/* ── NAV ── */
+nav{background:var(--sf);border-bottom:1px solid var(--b1);position:sticky;top:0;z-index:100}
+.nav-inner{max-width:1440px;margin:0 auto;padding:0 20px;display:flex;align-items:center;height:54px;gap:16px}
+.logo{font-family:'Inter Tight',sans-serif;font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;color:var(--tx);text-decoration:none}
+.logo-icon{width:28px;height:28px;background:var(--teal);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px}
+.nav-tabs{display:flex;gap:2px}
+.ntab{padding:5px 12px;border-radius:var(--rsm);border:none;background:none;font-family:'Inter',sans-serif;font-size:13px;color:var(--t2);cursor:pointer;transition:all .15s}
+.ntab:hover{background:var(--s2);color:var(--tx)}
+.ntab.active{background:var(--tl);color:var(--teal);font-weight:500}
+.nav-right{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.btn{padding:6px 12px;border-radius:var(--rsm);border:1px solid var(--b2);background:var(--sf);font-family:'Inter',sans-serif;font-size:12px;color:var(--tx);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn:hover{background:var(--s2)}
+.btn-primary{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:500}
+.btn-primary:hover{background:#0d5c47}
+.btn-danger{background:var(--red);border-color:var(--red);color:#fff}
+.btn-danger:hover{background:#c43b3a}
+.btn-sm{padding:4px 9px;font-size:11px}
+.btn-icon{padding:4px 7px;border-radius:var(--rsm);border:1px solid var(--b1);background:none;cursor:pointer;color:var(--t2);font-size:13px;line-height:1;transition:all .15s}
+.btn-icon:hover{background:var(--s2);color:var(--tx)}
+
+/* ── MAIN ── */
+main{max-width:1440px;margin:0 auto;padding:24px 20px}
+.section{display:none}.section.active{display:block}
+.page-hdr{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.page-hdr h1{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:700;margin-right:auto}
+
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px}
+.stat{background:var(--sf);border:1px solid var(--b1);border-radius:var(--r);padding:14px 16px}
+.stat .sl{font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.stat .sv{font-family:'Inter Tight',sans-serif;font-size:22px;font-weight:700}
+.stat .ss{font-size:11px;color:var(--t3);margin-top:2px}
+
+/* ── BANNERS ── */
+.banner{display:none;align-items:center;gap:12px;padding:10px 20px;font-size:13px;position:sticky;top:54px;z-index:99;border-bottom:1px solid var(--b1)}
+
+/* ── TIMELINE ── */
+.tl-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.tl-bar h1{font-family:'Inter Tight',sans-serif;font-size:20px;font-weight:700;margin-right:auto}
+.vsw-group{display:flex;background:var(--s2);border-radius:var(--rsm);padding:2px;gap:2px}
+.vsw{padding:4px 10px;border-radius:4px;border:none;background:none;font-family:'Inter',sans-serif;font-size:11px;color:var(--t2);cursor:pointer;transition:all .15s}
+.vsw:hover{background:var(--b1)}
+.vsw.active{background:var(--sf);color:var(--teal);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.gantt-card{background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;box-shadow:var(--sh)}
+.gantt-scroll{overflow-x:auto}
+.g-hdr-top{background:var(--teal);color:#fff;font-size:10px;font-weight:600;text-align:center;padding:5px 4px;white-space:nowrap;border-right:1px solid rgba(255,255,255,.2)}
+.g-hdr-sub{background:var(--s2);color:var(--t3);font-size:9px;font-weight:500;text-align:center;padding:4px 2px;border-bottom:1px solid var(--b1);white-space:nowrap;border-right:1px solid var(--b1)}
+.g-lbl{width:200px;min-width:200px;position:sticky;left:0;z-index:10;background:var(--sf);border-right:1px solid var(--b1);display:flex;align-items:center;padding:0 14px;gap:6px}
+.g-cell{border-right:1px solid var(--b1);position:relative}
+.g-row{display:flex;border-bottom:1px solid var(--b1);transition:background .1s}
+.g-row:last-child{border-bottom:none}
+.g-row:hover .g-cell{background:#F5F4F0}
+.today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:6;pointer-events:none}
+.bar-wrap{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
+.gbar{position:absolute;border-radius:5px;cursor:pointer;transition:filter .15s}
+.gbar:hover{filter:brightness(.88)}
+.gbar-lbl{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.2)}
+.gbar-out{position:absolute;top:50%;transform:translateY(-50%);font-size:10px;font-weight:500;white-space:nowrap;pointer-events:none;color:var(--t2)}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.leg{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2)}
+.leg-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+
+/* ── HIERARCHY ── */
+.proj-block{margin-bottom:20px}
+.proj-hdr{display:flex;align-items:center;gap:10px;padding:13px 16px;background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg) var(--rlg) 0 0;cursor:pointer}
+.proj-hdr.closed{border-radius:var(--rlg);border-bottom-width:1px}
+.proj-hdr h2{font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700;flex:1}
+.proj-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.meta{font-size:11px;color:var(--t3)}
+.chev{font-size:11px;color:var(--t3);transition:transform .2s}
+.chev.open{transform:rotate(90deg)}
+.proj-body{border:1px solid var(--b1);border-top:none;border-radius:0 0 var(--rlg) var(--rlg);overflow:hidden}
+.site-block{border-bottom:1px solid var(--b1)}
+.site-block:last-child{border-bottom:none}
+.site-hdr{display:flex;align-items:center;gap:8px;padding:9px 16px 9px 28px;background:var(--s2);cursor:pointer}
+.site-hdr h3{font-size:12px;font-weight:600;flex:1}
+.ms-row{display:flex;align-items:center;gap:8px;padding:9px 16px 9px 44px;border-top:1px solid var(--b1);cursor:pointer;transition:background .1s}
+.ms-row:hover{background:var(--s2)}
+.ms-row.exp{background:var(--tl)}
+.ms-color{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.ms-row-name{font-size:12px;font-weight:500;flex:1}
+.ms-dates{font-size:11px;color:var(--t3);white-space:nowrap}
+.prog-sm{width:70px;height:4px;background:var(--b1);border-radius:2px;overflow:hidden;flex-shrink:0}
+.prog-fill{height:100%;border-radius:2px}
+.badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600;white-space:nowrap}
+.del-bar{display:none;align-items:center;gap:8px;padding:9px 16px;background:#FEF2F2;border-top:1px solid #FECACA;font-size:12px}
+
+/* ── DETAIL ── */
+.ms-detail{border-top:1px solid var(--b1);padding:18px 20px 20px 44px;background:var(--sf)}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:14px}
+.dsec h4{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:8px}
+.dsec.full{grid-column:1/-1}
+.ag-table{width:100%;border-collapse:collapse;font-size:12px}
+.ag-table th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--t3);padding:5px 7px;border-bottom:1px solid var(--b1);text-align:left}
+.ag-table td{padding:6px 7px;border-bottom:1px solid var(--b1);vertical-align:top}
+.ag-table tr:last-child td{border-bottom:none}
+.ag-table tr:hover td{background:var(--s2)}
+.editable{outline:none;border-radius:3px;padding:1px 3px;cursor:text;min-width:40px;display:inline-block}
+.editable:hover{background:var(--s2)}
+.editable:focus{background:var(--b1)}
+.del-btn{background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;padding:1px 4px;border-radius:3px}
+.del-btn:hover{color:var(--red)}
+.add-row{display:flex;align-items:center;gap:5px;padding:6px 7px;font-size:12px;color:var(--t3);cursor:pointer;border-radius:var(--rsm);border:none;background:none;font-family:'Inter',sans-serif;width:100%;margin-top:2px}
+.add-row:hover{background:var(--s2);color:var(--tx)}
+.task-row{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid var(--b1)}
+.task-row:last-child{border-bottom:none}
+.chk{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--b2);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--sf)}
+.chk.done{background:var(--tm);border-color:var(--tm);color:#fff;font-size:9px}
+.task-lbl{font-size:12px;flex:1}
+.task-lbl.done{text-decoration:line-through;color:var(--t3)}
+.own-tag{font-size:10px;color:var(--t2);background:var(--s2);border-radius:20px;padding:2px 7px;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--s2);border:1px solid var(--b1);border-radius:20px;padding:3px 8px;font-size:11px}
+.chip-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.av{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;flex-shrink:0}
+.leave-tag{background:#FEF3C7;color:#92400E;border-radius:4px;padding:2px 7px;font-size:11px}
+.inline-form{display:flex;gap:6px;padding:7px 0;align-items:center;border-bottom:1px solid var(--b1)}
+.iinput{padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rsm);font-size:12px;font-family:'Inter',sans-serif;outline:none;background:var(--sf)}
+.iinput:focus{border-color:var(--teal)}
+
+/* ── TEAM ── */
+.mem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.mem-card{background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;transition:box-shadow .15s,border-color .15s}
+.mem-card:hover{box-shadow:var(--shm);border-color:var(--b2)}
+.mem-hdr{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--b1)}
+.mem-av{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.mem-info{flex:1;min-width:0}
+.mem-info h3{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mem-role{font-size:11px;color:var(--t3)}
+.mem-body{padding:10px 16px;display:flex;flex-direction:column;gap:7px}
+.mem-row{display:flex;align-items:flex-start;gap:7px;font-size:12px}
+.mem-lbl{font-size:10px;color:var(--t3);font-weight:600;text-transform:uppercase;letter-spacing:.04em;min-width:56px;padding-top:1px;flex-shrink:0}
+.mem-val{color:var(--tx);flex:1;line-height:1.4}
+.mem-chips{display:flex;flex-wrap:wrap;gap:3px}
+.mem-chip{font-size:10px;padding:2px 6px;border-radius:20px;border:1px solid var(--b1);background:var(--s2);color:var(--t2)}
+.mem-ftr{display:flex;border-top:1px solid var(--b1)}
+.rate-box{flex:1;text-align:center;padding:10px 6px}
+.rate-box .rv{font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700}
+.rate-box .rl{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:.04em}
+.rate-divider{width:1px;background:var(--b1)}
+
+/* ── MODALS ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--sf);border-radius:var(--rlg);box-shadow:var(--shm);width:520px;max-width:96vw;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column}
+.modal-hdr{padding:16px 20px 13px;border-bottom:1px solid var(--b1);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:var(--sf);z-index:2}
+.modal-hdr h3{font-family:'Inter Tight',sans-serif;font-size:15px;font-weight:700}
+.modal-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;flex:1}
+.modal-ftr{padding:12px 20px;border-top:1px solid var(--b1);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--sf)}
+.field label{display:block;font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.field input,.field select,.field textarea{width:100%;padding:7px 9px;border:1px solid var(--b2);border-radius:var(--rsm);font-family:'Inter',sans-serif;font-size:13px;color:var(--tx);background:var(--sf);outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--teal)}
+.field textarea{resize:vertical;min-height:56px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sec-lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:6px;display:block}
+.cp-row{display:flex;gap:6px;flex-wrap:wrap}
+.cp{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:transform .15s}
+.cp:hover,.cp.sel{transform:scale(1.2);border-color:var(--tx)}
+.dyn-row{display:flex;gap:6px;margin-bottom:6px;align-items:center}
+.dyn-input{flex:1;padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rsm);font-size:12px;font-family:'Inter',sans-serif;outline:none;background:var(--sf)}
+.dyn-input:focus{border-color:var(--teal)}
+.dyn-select{padding:5px 8px;border:1px solid var(--b2);border-radius:var(--rsm);font-size:12px;font-family:'Inter',sans-serif;background:var(--sf);outline:none}
+.add-dyn{display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:12px;color:var(--t3);cursor:pointer;border-radius:var(--rsm);border:none;background:none;font-family:'Inter',sans-serif}
+.add-dyn:hover{background:var(--s2);color:var(--tx)}
+
+/* ── FORECAST ── */
+.fc-table{width:100%;border-collapse:collapse;font-size:12px;min-width:900px}
+.fc-table th{background:var(--s2);padding:7px 10px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--t3);border-bottom:1px solid var(--b1);white-space:nowrap;text-align:right}
+.fc-table th.left{text-align:left}
+.fc-table th.month-hdr{background:var(--teal);color:#fff;text-align:center;font-size:10px}
+.fc-table td{padding:7px 10px;border-bottom:1px solid var(--b1);vertical-align:middle;text-align:right;white-space:nowrap}
+.fc-table td.left{text-align:left}
+.fc-table tr:last-child td{border-bottom:none}
+.fc-table tr:hover td{background:var(--s2)}
+.fc-table tr.total-row td{background:var(--tl);font-weight:700;border-top:2px solid var(--teal)}
+.fc-table tr.total-row:hover td{background:var(--tl)}
+.fc-scroll{overflow-x:auto}
+.month-group{background:var(--teal);color:#fff;text-align:center;padding:5px 8px;font-size:10px;font-weight:600;white-space:nowrap}
+.alloc-bar{height:6px;border-radius:3px;background:var(--b1);overflow:hidden;min-width:50px}
+.alloc-fill{height:100%;border-radius:3px;transition:width .3s}
+.npm-chip{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.fc-edit-btn{background:none;border:none;color:var(--t3);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:3px}
+.fc-edit-btn:hover{color:var(--teal);background:var(--tl)}
+.empty{text-align:center;padding:40px 20px;color:var(--t3);font-size:13px}
+.tooltip{position:fixed;background:var(--tx);color:#fff;font-size:11px;padding:4px 8px;border-radius:5px;pointer-events:none;z-index:500;white-space:nowrap;transform:translate(-50%,-130%);display:none}
+@media(max-width:680px){
+  main{padding:12px}
+  .detail-grid{grid-template-columns:1fr}
+  .detail-grid .full{grid-column:1}
+  .frow{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="#"><span class="logo-icon">P</span>Project Planner</a>
+    <div class="nav-tabs">
+      <button class="ntab active" onclick="showSec('dashboard')">Dashboard</button>
+      <button class="ntab" onclick="showSec('timeline')">Timeline</button>
+      <button class="ntab" onclick="showSec('hierarchy')">Projects</button>
+      <button class="ntab" onclick="showSec('team')">Team</button>
+      <button class="ntab" onclick="showSec('forecast')">Forecast</button>
+      <button class="ntab" onclick="showSec('leave')">Leave</button>
+    </div>
+    <div class="nav-right">
+      <button class="btn" onclick="triggerReset()">↺ Reset</button>
+      <button class="btn" onclick="downloadTemplate()">⬇ Template</button>
+      <label class="btn" style="cursor:pointer">⬆ Import <input type="file" id="xl-upload" accept=".xlsx,.xls" style="display:none" onchange="handleXlUpload(this)"></label>
+      <button class="btn" onclick="openModal('member')">+ Member</button>
+      <button class="btn" onclick="openModal('project')">+ Project</button>
+      <button class="btn btn-primary" onclick="openModal('milestone')">+ Milestone</button>
+    </div>
+  </div>
+</nav>
+
+<div id="banner-reset" class="banner" style="background:#FEF2F2;border-color:#FECACA">
+  <span style="flex:1;color:#991B1B">Clear all data and reload demo?</span>
+  <button class="btn btn-sm btn-danger" onclick="confirmReset()">Yes, reset</button>
+  <button class="btn btn-sm" onclick="hideBanner('banner-reset')">Cancel</button>
+</div>
+<div id="banner-import" class="banner">
+  <span id="banner-import-msg" style="flex:1"></span>
+  <button class="btn btn-sm" onclick="hideBanner('banner-import')">✕</button>
+</div>
+
+<main>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="section active">
+  <div class="page-hdr"><h1>Dashboard</h1></div>
+  <div class="stats-row" id="dash-stats"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="dash-body"></div>
+</div>
+
+<!-- TIMELINE -->
+<div id="timeline" class="section">
+  <div class="tl-bar">
+    <h1>Timeline</h1>
+    <div class="vsw-group">
+      <button class="vsw" id="vsw-day" onclick="setView('day')">Day</button>
+      <button class="vsw active" id="vsw-week" onclick="setView('week')">Week</button>
+      <button class="vsw" id="vsw-month" onclick="setView('month')">Month</button>
+      <button class="vsw" id="vsw-quarter" onclick="setView('quarter')">Quarter</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:5px">
+      <button class="btn-icon" onclick="zoom(-10)">−</button>
+      <input type="range" id="zoom-sl" min="14" max="180" value="48" step="4" oninput="zoom(0,+this.value)" style="width:80px;accent-color:var(--teal)">
+      <button class="btn-icon" onclick="zoom(10)">+</button>
+      <span id="zoom-lbl" style="font-size:11px;color:var(--t3);min-width:34px">48px</span>
+    </div>
+    <div class="vsw-group">
+      <button class="vsw active" id="rh-compact" onclick="setRowH('compact')">Compact</button>
+      <button class="vsw" id="rh-comfort" onclick="setRowH('comfort')">Comfortable</button>
+    </div>
+    <button class="btn btn-sm" onclick="scrollToday()">Today</button>
+  </div>
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:var(--red);border-radius:50%"></div>Milestone</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--red);width:2px;height:14px;border-radius:1px"></div>Today</div>
+  </div>
+  <div class="gantt-card"><div class="gantt-scroll" id="gantt"></div></div>
+</div>
+
+<!-- PROJECTS -->
+<div id="hierarchy" class="section">
+  <div class="page-hdr">
+    <h1>Projects</h1>
+    <button class="btn" onclick="openModal('project')">+ Project</button>
+    <button class="btn btn-primary" onclick="openModal('milestone')">+ Milestone</button>
+  </div>
+  <div id="hier-body"></div>
+</div>
+
+<!-- TEAM -->
+<div id="team" class="section">
+  <div class="page-hdr"><h1>Team</h1><button class="btn" onclick="manualSyncForecast()">↻ Sync from Forecast</button><button class="btn btn-primary" onclick="openModal('member')">+ Add member</button></div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:11px;color:var(--t3);font-weight:500">Filter:</span>
+    <select id="tf-proj" onchange="buildTeam()" class="dyn-select">
+      <option value="">All projects</option>
+    </select>
+    <select id="tf-site" onchange="buildTeam()" class="dyn-select">
+      <option value="">All sites</option>
+    </select>
+    <select id="tf-role" onchange="buildTeam()" class="dyn-select">
+      <option value="">All roles</option>
+    </select>
+    <input id="tf-search" placeholder="Search name…" oninput="buildTeam()" class="dyn-input" style="max-width:160px">
+  </div>
+  <div class="stats-row" id="team-stats"></div>
+  <div class="mem-grid" id="team-grid"></div>
+</div>
+
+<!-- LEAVE PLAN -->
+<div id="leave" class="section">
+  <div class="page-hdr">
+    <h1>Leave Plan</h1>
+    <span style="font-size:12px;color:var(--t3);margin-right:auto">UK public holidays auto-populated · click ✎ on any resource to add personal leave</span>
+    <div class="vsw-group">
+      <button class="vsw active" id="lv-all" onclick="setLeaveView('all')">All leave</button>
+      <button class="vsw" id="lv-holidays" onclick="setLeaveView('holidays')">Public holidays only</button>
+      <button class="vsw" id="lv-personal" onclick="setLeaveView('personal')">Personal only</button>
+    </div>
+    <select id="leave-year-filter" onchange="buildLeaveCalendar()" class="dyn-select">
+      <option value="">Full period</option>
+      <option value="2025">2025</option>
+      <option value="2026">2026</option>
+      <option value="2027">2027</option>
+      <option value="2028">2028</option>
+    </select>
+  </div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="leave-body">
+    <div class="empty" style="padding:40px">Loading leave calendar…</div>
+  </div>
+</div>
+
+</main>
+
+<!-- LEAVE PLAN MODAL -->
+<div class="modal-bg" id="modal-leaveplan" onclick="if(event.target===this)closeModal('leaveplan')">
+<div class="modal" style="width:680px">
+  <div class="modal-hdr">
+    <div>
+      <h3 id="lp-res-name">Resource leave</h3>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">UK public holidays are automatically shown. Add personal leave below.</div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('leaveplan')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div style="background:var(--rl);border:1px solid var(--red);border-radius:var(--rsm);padding:10px 12px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--coral);margin-bottom:6px">🇬🇧 Upcoming UK public holidays in forecast period</div>
+      <div id="lp-uk-holidays" style="font-size:11px;color:var(--t2);display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+    <span class="sec-lbl" style="margin-bottom:6px;display:block">Personal leave</span>
+    <div id="lp-rows"></div>
+    <button class="add-dyn" onclick="addLeaveRow()">+ Add leave period</button>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('leaveplan')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveLeavePlan()">Save leave plan</button>
+  </div>
+</div>
+</div>
+
+<!-- FORECAST -->
+<div id="forecast" class="section">
+  <div class="page-hdr">
+    <h1>Resource Forecast</h1>
+    <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+      <select id="fc-view" onchange="buildForecast()" class="dyn-select">
+        <option value="summary">Summary view</option>
+        <option value="monthly">Monthly breakdown</option>
+        <option value="weekly">Weekly breakdown</option>
+        <option value="byproject">By project / site</option>
+        <option value="analysis">Cost & margin analysis</option>
+      </select>
+      <select id="fc-week-month" onchange="buildForecast()" class="dyn-select" style="display:none">
+        <option value="all">All months</option>
+      </select>
+      <button class="btn" onclick="openPeriodModal()" title="Change forecast period">📅 <span id="fc-period-label">Nov 2025 – May 2026</span></button>
+      <button class="btn btn-primary" onclick="openForecastModal()">+ Add resource</button>
+    </div>
+  </div>
+
+  <!-- KPI row -->
+  <div class="stats-row" id="fc-kpis" style="margin-bottom:16px"></div>
+
+  <!-- Monthly NPM bar -->
+  <div id="fc-npm-bar" style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px;margin-bottom:16px"></div>
+
+  <!-- Main table area -->
+  <div id="fc-main" style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden"></div>
+</div>
+
+<!-- FORECAST PERIOD MODAL -->
+<div class="modal-bg" id="modal-fcperiod" onclick="if(event.target===this)closeModal('fcperiod')">
+<div class="modal" style="width:420px">
+  <div class="modal-hdr"><h3>Forecast period</h3><button class="btn-icon" onclick="closeModal('fcperiod')">✕</button></div>
+  <div class="modal-body">
+    <p style="font-size:12px;color:var(--t2);margin-bottom:4px">Choose the date range for your forecast. Months and weeks will regenerate automatically.</p>
+    <div class="frow">
+      <div class="field"><label>Start month</label><input id="fcp-start" type="month"></div>
+      <div class="field"><label>End month</label><input id="fcp-end" type="month"></div>
+    </div>
+    <p style="font-size:11px;color:var(--t3)">Existing monthly and weekly allocation entries are kept where the month key matches — if you shrink the period, data outside the new range is simply hidden, not deleted.</p>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('fcperiod')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveFcPeriod()">Apply period</button>
+  </div>
+</div>
+</div>
+
+<!-- FORECAST MODAL -->
+<div class="modal-bg" id="modal-forecast" onclick="if(event.target===this)closeModal('forecast')">
+<div class="modal" style="width:600px">
+  <div class="modal-hdr"><h3 id="fc-modal-title">Add resource to forecast</h3><button class="btn-icon" onclick="closeModal('forecast')">✕</button></div>
+  <div class="modal-body">
+    <div class="frow">
+      <div class="field">
+        <label>Resource name *</label>
+        <select id="fc-res-sel" onchange="fillFromTeam()" class="dyn-select" style="width:100%">
+          <option value="">-- Select from team or enter manually --</option>
+        </select>
+      </div>
+      <div class="field"><label>Or type name</label><input id="fc-name" placeholder="Resource name"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Team / Group</label><input id="fc-team" placeholder="e.g. Green, Blue"></div>
+      <div class="field"><label>Role / Type</label><input id="fc-role" placeholder="e.g. Senior Functional Consultant"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Cost region</label>
+        <select id="fc-region" class="dyn-select" style="width:100%">
+          <option value="UK">UK</option><option value="SL">SL</option>
+          <option value="IND">IND</option><option value="US">US</option>
+        </select>
+      </div>
+      <div class="field"><label>Billing rate / Day (£)</label><input id="fc-bill-d" type="number" min="0" step="10" placeholder="e.g. 800"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Billing rate / Hour (£)</label><input id="fc-bill-h" type="number" min="0" step="1" placeholder="e.g. 100"></div>
+      <div class="field"><label>Hourly cost (£)</label><input id="fc-cost-h" type="number" min="0" step="0.5" placeholder="e.g. 75"></div>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Monthly allocation % — based on current forecast period</span>
+      <div id="fc-alloc-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px">
+        <!-- populated dynamically from FC_MONTHS -->
+      </div>
+    </div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('forecast')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveForecastResource()">Save resource</button>
+  </div>
+</div>
+</div>
+
+<!-- FORECAST WEEK ALLOCATION (split by project/site) MODAL -->
+<div class="modal-bg" id="modal-fcweek" onclick="if(event.target===this)closeModal('fcweek')">
+<div class="modal" style="width:520px">
+  <div class="modal-hdr">
+    <div>
+      <h3 id="fcwk-title" style="margin-bottom:2px">Week allocation</h3>
+      <div id="fcwk-sub" style="font-size:11px;color:var(--t3)"></div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('fcweek')">✕</button>
+  </div>
+  <div class="modal-body">
+    <p style="font-size:12px;color:var(--t2)">Split this resource's effort for the week across one or more projects/sites. Leave the project blank for general/unassigned effort.</p>
+    <div id="fcwk-rows"></div>
+    <button class="add-dyn" onclick="addFcWeekRow()">+ Add project / site</button>
+    <div id="fcwk-total" style="margin-top:10px;padding:10px 12px;background:var(--s2);border-radius:var(--r);font-size:13px"></div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('fcweek')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveFcWeekAlloc()">Save allocation</button>
+  </div>
+</div>
+</div>
+
+<!-- ── MODALS ── -->
+<!-- Project -->
+<div class="modal-bg" id="modal-project" onclick="if(event.target===this)closeModal('project')">
+<div class="modal">
+  <div class="modal-hdr"><h3 id="proj-title">New project</h3><button class="btn-icon" onclick="closeModal('project')">✕</button></div>
+  <div class="modal-body">
+    <div class="field"><label>Project name *</label><input id="p-name" placeholder="e.g. ERP Implementation"></div>
+    <div class="field"><label>Description</label><textarea id="p-desc" rows="2" placeholder="Brief description…"></textarea></div>
+    <div class="frow">
+      <div class="field"><label>Start date</label><input id="p-start" type="date"></div>
+      <div class="field"><label>End date</label><input id="p-end" type="date"></div>
+    </div>
+    <div class="field"><label>Colour</label><div class="cp-row" id="proj-cp"></div></div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Sites</span>
+      <div id="site-list"></div>
+      <button class="add-dyn" onclick="addSiteField()">+ Add site</button>
+    </div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('project')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveProject()">Save project</button>
+  </div>
+</div>
+</div>
+
+<!-- Milestone -->
+<div class="modal-bg" id="modal-milestone" onclick="if(event.target===this)closeModal('milestone')">
+<div class="modal">
+  <div class="modal-hdr"><h3 id="ms-title">New milestone</h3><button class="btn-icon" onclick="closeModal('milestone')">✕</button></div>
+  <div class="modal-body">
+    <div class="field"><label>Milestone name *</label><input id="ms-name" placeholder="e.g. UAT Sign-off"></div>
+    <div class="frow">
+      <div class="field"><label>Project *</label><select id="ms-proj" onchange="populateSiteSel()"></select></div>
+      <div class="field"><label>Site *</label><select id="ms-site"></select></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Start date *</label><input id="ms-start" type="date"></div>
+      <div class="field"><label>End date *</label><input id="ms-end" type="date"></div>
+    </div>
+    <div class="field"><label>Owner</label><input id="ms-owner" placeholder="e.g. Project Team"></div>
+    <div class="field"><label>Colour</label><div class="cp-row" id="ms-cp"></div></div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Team members assigned</span>
+      <div id="ms-team-list"></div>
+      <button class="add-dyn" onclick="addMsTeamRow()">+ Add team member</button>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Dependencies (comma-separated)</span>
+      <input id="ms-deps" placeholder="e.g. UAT complete, EUT sign-off">
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Leave conflicts on this milestone</span>
+      <div id="ms-leave-list" style="font-size:11px;color:var(--t3);min-height:20px"></div>
+    </div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('milestone')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveMilestone()">Save milestone</button>
+  </div>
+</div>
+</div>
+
+<!-- Member -->
+<div class="modal-bg" id="modal-member" onclick="if(event.target===this)closeModal('member')">
+<div class="modal" style="width:580px">
+  <div class="modal-hdr"><h3 id="mem-title">New team member</h3><button class="btn-icon" onclick="closeModal('member')">✕</button></div>
+  <div class="modal-body">
+    <div class="frow">
+      <div class="field"><label>Full name *</label><input id="mem-name" placeholder="e.g. Alice Johnson"></div>
+      <div class="field"><label>Role / Title *</label><input id="mem-role" placeholder="e.g. Business Analyst"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Email</label><input id="mem-email" type="email" placeholder="alice@company.com"></div>
+      <div class="field"><label>Colour</label><div class="cp-row" id="mem-cp"></div></div>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Project &amp; site assignments</span>
+      <div id="mem-assign-list"></div>
+      <button class="add-dyn" onclick="addMemAssign()">+ Add assignment</button>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Modules</span>
+      <input id="mem-modules" placeholder="e.g. Finance, Procurement, Warehousing (comma-separated)" style="width:100%;padding:7px 9px;border:1px solid var(--b2);border-radius:var(--rsm);font-size:13px;font-family:Inter,sans-serif;outline:none">
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Rates</span>
+      <div class="frow">
+        <div class="field"><label>Cost rate (£/hr)</label><input id="mem-cost" type="number" min="0" step="0.5" placeholder="0.00"></div>
+        <div class="field"><label>Billing rate (£/hr)</label><input id="mem-bill" type="number" min="0" step="0.5" placeholder="0.00"></div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <span class="sec-lbl">Leave / Unavailability</span>
+      <div id="mem-leave-list"></div>
+      <button class="add-dyn" onclick="addMemLeave()">+ Add leave period</button>
+    </div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('member')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveMember()">Save member</button>
+  </div>
+</div>
+</div>
+
+<div class="tooltip" id="tip"></div>
+
+<script>
+// ─── PALETTE ─────────────────────────────────────────────────────────────────
+const PAL = [
+  {c:'#534AB7',l:'#EEEDFE'},{c:'#1D9E75',l:'#E1F5EE'},{c:'#185FA5',l:'#E6F1FB'},
+  {c:'#BA7517',l:'#FAEEDA'},{c:'#993C1D',l:'#FAECE7'},{c:'#E24B4A',l:'#FCEBEB'},
+  {c:'#3B6D11',l:'#EAF3DE'},{c:'#6B6960',l:'#F2F1EE'}
+];
+const CMAP = {
+  green:{c:'#1D9E75',l:'#E1F5EE'}, blue:{c:'#185FA5',l:'#E6F1FB'},
+  purple:{c:'#534AB7',l:'#EEEDFE'}, amber:{c:'#BA7517',l:'#FAEEDA'},
+  coral:{c:'#993C1D',l:'#FAECE7'}, red:{c:'#E24B4A',l:'#FCEBEB'},
+  teal:{c:'#0F6E56',l:'#E1F5EE'}, gray:{c:'#6B6960',l:'#F2F1EE'}
+};
+
+// ─── STATE ───────────────────────────────────────────────────────────────────
+let projects=[], milestones=[], teams=[];
+let eProjId=null, eMsId=null, eMemId=null;
+let expProj={}, expSite={}, expMs=null;
+let selProjCol=PAL[1], selMsCol=PAL[0], selMemCol=PAL[2];
+let memAssigns=[], memLeaves=[], msTeamRows=[];
+let gView='week', gCellW=48, gRowH='compact';
+
+// ─── HELPERS ────────────────────────────────────────────────────────────────
+function uid(){ return 'id_'+Date.now()+'_'+Math.random().toString(36).slice(2,7) }
+function fmtD(d){ if(!d)return'—'; const dt=new Date(d+'T00:00'); return dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) }
+function fmtS(d){ if(!d)return''; const dt=new Date(d+'T00:00'); return dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'}) }
+function statusOf(p){ if(p===100)return{t:'Complete',c:'#3B6D11',bg:'#EAF3DE'}; if(p>=60)return{t:'On track',c:'#0F6E56',bg:'#E1F5EE'}; if(p>0)return{t:'In progress',c:'#BA7517',bg:'#FAEEDA'}; return{t:'Not started',c:'#6B6960',bg:'#F2F1EE'} }
+function recalc(ms){ ms.progress=ms.tasks.length?Math.round(ms.tasks.filter(t=>t.done).length/ms.tasks.length*100):0 }
+function ini(name){ return name.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2)||'?' }
+
+// ─── COLOUR PICKER ──────────────────────────────────────────────────────────
+function buildCp(id, onSel){
+  document.getElementById(id).innerHTML=PAL.map((p,i)=>
+    `<div class="cp" style="background:${p.c}" onclick="(${onSel.toString()})(this,${i})"></div>`
+  ).join('');
+}
+function pickProj(el,i){ qsa('#proj-cp .cp',e=>e.classList.remove('sel')); el.classList.add('sel'); selProjCol=PAL[i] }
+function pickMs(el,i){ qsa('#ms-cp .cp',e=>e.classList.remove('sel')); el.classList.add('sel'); selMsCol=PAL[i] }
+function pickMem(el,i){ qsa('#mem-cp .cp',e=>e.classList.remove('sel')); el.classList.add('sel'); selMemCol=PAL[i] }
+function qsa(sel,fn){ document.querySelectorAll(sel).forEach(fn) }
+function qs(sel){ return document.querySelector(sel) }
+function el(id){ return document.getElementById(id) }
+
+// ─── SEED DATA ───────────────────────────────────────────────────────────────
+function seedData(){
+  expProj={proj1:true};
+  expSite={'proj1_Site 1':true,'proj1_PAL':true};
+  projects=[{id:'proj1',name:'ERP Implementation',desc:'Fortude ERP rollout',start:'2025-07-07',end:'2026-03-30',color:'#1D9E75',colorLight:'#E1F5EE',sites:['Site 1','PAL']}];
+  milestones=[
+    {id:'m1',projectId:'proj1',site:'Site 1',name:'DM Design Freeze',start:'2025-09-08',end:'2025-09-08',owner:'Design Lead',color:'#1D9E75',colorLight:'#E1F5EE',progress:100,deps:['Scenario list','CRP 1 outputs'],teamIds:['mbr1','mbr3'],agenda:[{id:'a1',date:'2025-09-08',time:'09:00',title:'Final design review',who:'Design Lead',notes:'With Syzan & Co'},{id:'a2',date:'2025-09-08',time:'10:30',title:'Sign-off on specs',who:'All',notes:''},{id:'a3',date:'2025-09-08',time:'11:30',title:'Freeze confirmation',who:'PM',notes:'Distribute to dev'}],tasks:[{id:'t1',label:'All DM specs reviewed',done:true,owner:'Design Lead'},{id:'t2',label:'Sign-off received',done:true,owner:'PM'},{id:'t3',label:'Specs distributed',done:true,owner:'BA'}]},
+    {id:'m2',projectId:'proj1',site:'Site 1',name:'Wave 3 Solution Freeze',start:'2025-10-06',end:'2025-10-06',owner:'Solution Architect',color:'#185FA5',colorLight:'#E6F1FB',progress:100,deps:['CRP 2 complete','Gap list finalised'],teamIds:['mbr2','mbr4'],agenda:[{id:'a1',date:'2025-10-06',time:'09:00',title:'Solution blueprint review',who:'Arch Team',notes:''},{id:'a2',date:'2025-10-06',time:'10:30',title:'Gap analysis sign-off',who:'BA + PM',notes:''},{id:'a3',date:'2025-10-06',time:'12:00',title:'Baseline distribution',who:'PM',notes:'Email all stakeholders'}],tasks:[{id:'t1',label:'Blueprint finalised',done:true,owner:'Architect'},{id:'t2',label:'Gaps documented',done:true,owner:'BA'},{id:'t3',label:'Steering approved',done:true,owner:'PM'}]},
+    {id:'m3',projectId:'proj1',site:'Site 1',name:'Site 1 – Jan Go-Live',start:'2026-01-26',end:'2026-01-31',owner:'Project Team',color:'#534AB7',colorLight:'#EEEDFE',progress:65,deps:['EUT complete','UAT fixes','FST sign-off'],teamIds:['mbr1','mbr2','mbr3','mbr4'],agenda:[{id:'a1',date:'2026-01-26',time:'09:00',title:'Go-Live readiness review',who:'PM + Tech Lead',notes:''},{id:'a2',date:'2026-01-27',time:'09:00',title:'Cutover checklist walkthrough',who:'All teams',notes:''},{id:'a3',date:'2026-01-31',time:'09:00',title:'Data migration sign-off',who:'Data Team',notes:''},{id:'a4',date:'2026-01-31',time:'14:00',title:'Stakeholder briefing',who:'PM + Sponsors',notes:''}],tasks:[{id:'t1',label:'UAT sign-off received',done:true,owner:'BA'},{id:'t2',label:'Data migration dry run',done:true,owner:'Tech'},{id:'t3',label:'Training confirmed',done:true,owner:'L&D'},{id:'t4',label:'Cutover runbook approved',done:false,owner:'PM'},{id:'t5',label:'Hypercare team rostered',done:false,owner:'Support'},{id:'t6',label:'Rollback plan signed off',done:false,owner:'Tech Lead'}]},
+    {id:'m4',projectId:'proj1',site:'Site 1',name:'Site 1 – Feb Go-Live',start:'2026-02-23',end:'2026-02-28',owner:'Project Team',color:'#534AB7',colorLight:'#EEEDFE',progress:30,deps:['Jan Go-Live stable','Wave 3 EUT','Critical defects resolved'],teamIds:['mbr1','mbr2','mbr5'],agenda:[{id:'a1',date:'2026-02-23',time:'09:00',title:'Wave 3 readiness gate',who:'Steering',notes:''},{id:'a2',date:'2026-02-28',time:'13:00',title:'Go / No-go decision',who:'Sponsors',notes:'Formal approval required'}],tasks:[{id:'t1',label:'Wave 3 EUT completed',done:true,owner:'QA'},{id:'t2',label:'FST passed',done:true,owner:'QA'},{id:'t3',label:'Cutover plan approved',done:false,owner:'PM'},{id:'t4',label:'Business readiness confirmed',done:false,owner:'Business Lead'}]},
+    {id:'m5',projectId:'proj1',site:'PAL',name:'PAL – Feb Go Live',start:'2026-03-01',end:'2026-03-31',owner:'PMO',color:'#534AB7',colorLight:'#EEEDFE',progress:10,deps:['Feb Go-Live success','Hypercare complete'],teamIds:['mbr2','mbr5'],agenda:[{id:'a1',date:'2026-03-01',time:'09:00',title:'PAL final sign-off session',who:'PMO + Steering',notes:''},{id:'a2',date:'2026-03-31',time:'14:00',title:'Transition to BAU',who:'PMO + Support',notes:''}],tasks:[{id:'t1',label:'All sites live and stable',done:false,owner:'All'},{id:'t2',label:'Hypercare concluded',done:false,owner:'Support'},{id:'t3',label:'Lessons learned captured',done:false,owner:'PM'}]}
+  ];
+  teams=[
+    {id:'mbr1',name:'Alice Johnson',role:'Business Analyst',email:'alice@company.com',color:'#185FA5',assignments:[{projectId:'proj1',site:'Site 1'}],modules:['Finance','Procurement'],costRate:75,billRate:120,leaves:[{start:'2026-02-20',end:'2026-02-24',reason:'Annual leave'}]},
+    {id:'mbr2',name:'Jonathan Lee',role:'Technical Lead',email:'j.lee@company.com',color:'#1D9E75',assignments:[{projectId:'proj1',site:'Site 1'}],modules:['Manufacturing','Warehousing'],costRate:95,billRate:150,leaves:[{start:'2026-02-17',end:'2026-02-21',reason:'Annual leave'}]},
+    {id:'mbr3',name:'Anant Sharma',role:'Procurement Consultant',email:'anant@fortude.com',color:'#BA7517',assignments:[{projectId:'proj1',site:'Site 1'}],modules:['Procurement','Indirect Procurement'],costRate:80,billRate:130,leaves:[]},
+    {id:'mbr4',name:'Swetha Naduni',role:'Finance Consultant',email:'swetha@fortude.com',color:'#534AB7',assignments:[{projectId:'proj1',site:'Site 1'}],modules:['Finance'],costRate:80,billRate:130,leaves:[]},
+    {id:'mbr5',name:'Shash Venumi',role:'Order to Cash Lead',email:'shash@fortude.com',color:'#993C1D',assignments:[{projectId:'proj1',site:'Site 1'}],modules:['Order to Cash'],costRate:85,billRate:135,leaves:[]},
+  ];
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
+function buildDashboard(){
+  const total=milestones.length, done=milestones.filter(m=>m.progress===100).length;
+  const avg=total?Math.round(milestones.reduce((a,m)=>a+m.progress,0)/total):0;
+  const allT=milestones.flatMap(m=>m.tasks), doneT=allT.filter(t=>t.done).length;
+  const atRisk=milestones.filter(m=>m.progress>0&&m.progress<50).length;
+  el('dash-stats').innerHTML=[
+    {sl:'Overall progress',sv:avg+'%',ss:`${done} of ${total} milestones complete`},
+    {sl:'Tasks',sv:`${doneT}/${allT.length}`,ss:'Done across all milestones'},
+    {sl:'At risk',sv:atRisk,ss:'Milestones below 50%',col:atRisk>0?'var(--red)':''},
+    {sl:'Team members',sv:teams.length,ss:`${projects.length} project${projects.length!==1?'s':''}`},
+  ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
+
+  const upcoming=[...milestones].filter(m=>m.progress<100).sort((a,b)=>a.start>b.start?1:-1).slice(0,5);
+  const openT=milestones.flatMap(m=>m.tasks.filter(t=>!t.done).map(t=>({...t,msName:m.name}))).slice(0,6);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const membersOnLeave=teams.filter(m=>m.leaves.some(l=>new Date(l.start+'T00:00')<=today&&new Date(l.end+'T00:00')>=today));
+
+  el('dash-body').innerHTML=`
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px">
+      <h3 style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Upcoming milestones</h3>
+      ${upcoming.length?upcoming.map(m=>{const s=statusOf(m.progress);return`<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--b1);cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${m.id}'),60)">
+        <div style="width:8px;height:8px;border-radius:50%;background:${m.color};flex-shrink:0"></div>
+        <div style="flex:1"><div style="font-size:12px;font-weight:500">${m.name}</div><div style="font-size:10px;color:var(--t3)">${fmtS(m.start)}${m.end&&m.end!==m.start?' – '+fmtS(m.end):''} · ${m.owner||'—'}</div></div>
+        <span class="badge" style="background:${s.bg};color:${s.c}">${s.t}</span>
+      </div>`}).join(''):'<div class="empty" style="padding:20px 0">All milestones complete 🎉</div>'}
+    </div>
+    ${membersOnLeave.length?`<div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px">
+      <h3 style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:10px">On leave today</h3>
+      ${membersOnLeave.map(m=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1)">
+        <div class="mem-av" style="background:${m.color}22;color:${m.color};width:28px;height:28px;font-size:11px">${ini(m.name)}</div>
+        <div><div style="font-size:12px;font-weight:500">${m.name}</div><div style="font-size:10px;color:var(--t3)">${m.role}</div></div>
+        <span class="leave-tag" style="margin-left:auto">On leave</span>
+      </div>`).join('')}
+    </div>`:''}
+  </div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px">
+    <h3 style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Open tasks</h3>
+    ${openT.length?openT.map(t=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1)">
+      <div style="width:13px;height:13px;border-radius:3px;border:1.5px solid var(--b2);margin-top:1px;flex-shrink:0"></div>
+      <div><div style="font-size:12px;font-weight:500">${t.label}</div><div style="font-size:10px;color:var(--t3)">${t.msName} · ${t.owner}</div></div>
+    </div>`).join(''):'<div class="empty" style="padding:20px 0">No open tasks</div>'}
+  </div>`;
+}
+
+// ─── GANTT ───────────────────────────────────────────────────────────────────
+function setView(v){
+  gView=v;
+  qsa('.vsw[id^=vsw-]',b=>b.classList.remove('active'));
+  el('vsw-'+v)?.classList.add('active');
+  const def={day:28,week:48,month:80,quarter:120};
+  gCellW=def[v]; el('zoom-sl').value=gCellW; el('zoom-lbl').textContent=gCellW+'px';
+  buildGantt();
+}
+function zoom(d,abs){
+  gCellW=abs!==undefined?Math.min(200,Math.max(14,abs)):Math.min(200,Math.max(14,gCellW+d));
+  el('zoom-sl').value=gCellW; el('zoom-lbl').textContent=gCellW+'px'; buildGantt();
+}
+function setRowH(h){
+  gRowH=h;
+  qsa('.vsw[id^=rh-]',b=>b.classList.remove('active'));
+  el('rh-'+h)?.classList.add('active'); buildGantt();
+}
+function scrollToday(){ el('today-anchor')?.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}) }
+
+function buildGantt(){
+  const cont=el('gantt');
+  if(!milestones.length){ cont.innerHTML='<div class="empty" style="padding:40px">No milestones yet.</div>'; return; }
+  const allD=milestones.flatMap(m=>[m.start,m.end]).filter(Boolean).sort();
+  if(!allD.length) return;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const W=gCellW, RH=gRowH==='comfort'?44:32, BH=gRowH==='comfort'?28:20, BT=Math.floor((RH-BH)/2);
+  const LW=200;
+
+  function sob(dt,u){ const d=new Date(dt); if(u==='day'){d.setHours(0,0,0,0);return d} if(u==='week'){d.setDate(d.getDate()-((d.getDay()+6)%7));d.setHours(0,0,0,0);return d} if(u==='month'){d.setDate(1);d.setHours(0,0,0,0);return d} d.setDate(1);d.setHours(0,0,0,0);d.setMonth(Math.floor(d.getMonth()/3)*3);return d }
+  function addU(d,u,n=1){ const r=new Date(d); if(u==='day')r.setDate(r.getDate()+n); else if(u==='week')r.setDate(r.getDate()+n*7); else if(u==='month')r.setMonth(r.getMonth()+n); else r.setMonth(r.getMonth()+n*3); return r }
+  function days(a,b){ return(b-a)/(864e5) }
+  function pxOf(dateStr){ const d=new Date(dateStr+'T00:00'); return Math.round(days(pStart,d)/totalDays*cols.length*W) }
+
+  const pStart=addU(sob(allD[0],gView),gView,-1);
+  const pEnd=addU(sob(allD[allD.length-1],gView),gView,2);
+  const cols=[]; let cur=new Date(pStart); while(cur<pEnd){cols.push(new Date(cur));cur=addU(cur,gView)}
+  const totalDays=days(pStart,addU(pStart,gView,cols.length));
+  const todayPx=Math.round(days(pStart,today)/totalDays*cols.length*W);
+
+  function topKey(d){ return(gView==='day'||gView==='week')?d.toLocaleDateString('en-GB',{month:'short',year:'numeric'}):d.getFullYear().toString() }
+  function subLbl(d){ if(gView==='day')return d.getDate(); if(gView==='week')return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}); if(gView==='month')return d.toLocaleDateString('en-GB',{month:'short'}); return'Q'+(Math.floor(d.getMonth()/3)+1)+' '+d.getFullYear() }
+  function isCurrentCol(d){ return d<=today&&addU(d,gView)>today }
+
+  const topGroups=[]; cols.forEach(c=>{ const k=topKey(c); if(!topGroups.length||topGroups[topGroups.length-1].label!==k)topGroups.push({label:k,count:1}); else topGroups[topGroups.length-1].count++ });
+
+  let h=`<div style="position:relative;min-width:${LW+cols.length*W}px">`;
+  // sticky header
+  h+=`<div style="position:sticky;top:0;z-index:20;display:flex">`;
+  h+=`<div style="width:${LW}px;min-width:${LW}px;background:var(--s2);border-right:1px solid var(--b1);border-bottom:1px solid var(--b1);position:sticky;left:0;z-index:22"></div>`;
+  h+=`<div style="flex:1;overflow:hidden"><div style="display:flex">`;
+  topGroups.forEach(g=>h+=`<div class="g-hdr-top" style="width:${g.count*W}px;min-width:${g.count*W}px">${g.label}</div>`);
+  h+=`</div><div style="display:flex;position:relative">`;
+  cols.forEach((c,ci)=>{
+    const isCur=isCurrentCol(c);
+    h+=`<div class="g-hdr-sub" style="width:${W}px;min-width:${W}px;${isCur?'background:var(--tl);color:var(--teal);font-weight:700':''}" ${ci===cols.findIndex(x=>isCurrentCol(x))?'id="today-anchor"':''}>${subLbl(c)}</div>`;
+  });
+  if(todayPx>=0&&todayPx<=cols.length*W) h+=`<div style="position:absolute;top:0;font-size:9px;color:var(--red);font-weight:700;white-space:nowrap;transform:translateX(-50%);pointer-events:none;left:${todayPx}px">Today</div>`;
+  h+=`</div></div></div>`;
+
+  // rows
+  projects.forEach(proj=>{
+    const pms=milestones.filter(m=>m.projectId===proj.id);
+    const sites=[...new Set([...(proj.sites||[]),...pms.map(m=>m.site)])].filter(Boolean);
+    if(!pms.length&&!sites.length) return;
+    // project row
+    h+=`<div class="g-row" style="height:${RH}px;background:${proj.colorLight||'#E1F5EE'}">`;
+    h+=`<div class="g-lbl" style="background:${proj.colorLight};font-weight:700;font-size:12px;color:${proj.color}"><div style="width:8px;height:8px;border-radius:50%;background:${proj.color};flex-shrink:0"></div>${proj.name}</div>`;
+    h+=`<div style="flex:1;position:relative;display:flex">`;
+    cols.forEach(()=>h+=`<div class="g-cell" style="width:${W}px;min-width:${W}px;height:${RH}px"></div>`);
+    if(todayPx>=0&&todayPx<=cols.length*W) h+=`<div class="today-line" style="left:${todayPx}px"></div>`;
+    h+=`</div></div>`;
+
+    sites.forEach(site=>{
+      const sms=pms.filter(m=>m.site===site);
+      h+=`<div class="g-row" style="height:${RH}px;background:var(--s2)">`;
+      h+=`<div class="g-lbl" style="background:var(--s2);padding-left:24px;font-size:11px;font-weight:600;color:var(--t2)"><span style="background:${proj.color};color:#fff;font-size:9px;border-radius:3px;padding:1px 5px;margin-right:5px">${site}</span>${site}</div>`;
+      h+=`<div style="flex:1;position:relative;display:flex">`;
+      cols.forEach(()=>h+=`<div class="g-cell" style="width:${W}px;min-width:${W}px;height:${RH}px"></div>`);
+      if(todayPx>=0&&todayPx<=cols.length*W) h+=`<div class="today-line" style="left:${todayPx}px"></div>`;
+      h+=`</div></div>`;
+
+      sms.forEach(ms=>{
+        const s=ms.start?new Date(ms.start+'T00:00'):null, e=ms.end?new Date(ms.end+'T00:00'):s;
+        const stat=statusOf(ms.progress);
+        let bL=0,bW=W,show=false;
+        if(s){ bL=pxOf(ms.start); const ed=e?new Date(e):new Date(s); ed.setDate(ed.getDate()+1); bW=Math.max(Math.round(days(s,ed)/totalDays*cols.length*W),BH); show=bL<cols.length*W&&bL+bW>0 }
+        const cL=Math.max(bL,0), cW=Math.max(bL+bW-cL,8), pW=Math.round(cW*ms.progress/100);
+        const lblFits=cW>60;
+        h+=`<div class="g-row" style="height:${RH}px">`;
+        h+=`<div class="g-lbl" style="padding-left:36px;cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)">
+          <div style="width:7px;height:7px;border-radius:50%;background:${ms.color};flex-shrink:0"></div>
+          <div style="flex:1;overflow:hidden"><div style="font-size:${gRowH==='comfort'?'12':'11'}px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px">${ms.name}</div>${gRowH==='comfort'?`<div style="font-size:10px;color:var(--t3)">${ms.owner||''}</div>`:''}</div>
+          <span style="font-size:9px;padding:1px 5px;border-radius:10px;background:${stat.bg};color:${stat.c};flex-shrink:0">${ms.progress}%</span>
+        </div>`;
+        h+=`<div style="flex:1;position:relative;display:flex">`;
+        cols.forEach(()=>h+=`<div class="g-cell" style="width:${W}px;min-width:${W}px;height:${RH}px"></div>`);
+        if(todayPx>=0&&todayPx<=cols.length*W) h+=`<div class="today-line" style="left:${todayPx}px"></div>`;
+        // UK public holiday stripes
+        UK_HOLIDAYS.forEach(hol=>{
+          const d=new Date(hol.date+'T00:00');
+          if(d<pStart||d>=addU(pStart,gView,cols.length)) return;
+          const hpx=Math.round(days(pStart,d)/totalDays*cols.length*W);
+          const hw=Math.max(Math.round(W/7),2);
+          h+=`<div style="position:absolute;top:0;left:${hpx}px;width:${hw}px;bottom:0;background:rgba(226,75,74,.18);z-index:3;pointer-events:none" title="${hol.name}"></div>`;
+        });
+        // Personal leave stripes — from fcResources matched to team members on this milestone
+        const msTeamIds = ms.teamIds||[];
+        const msTeamNames = teams.filter(t=>msTeamIds.includes(t.id)).map(t=>t.name.toLowerCase().trim());
+        const msResources = fcResources.filter(r=>msTeamNames.includes(r.name.toLowerCase().trim()));
+        msResources.forEach(r=>{
+          (r.fcLeaves||[]).forEach(l=>{
+            if(!l.start||!l.end) return;
+            const ls=new Date(l.start+'T00:00'), le=new Date(l.end+'T00:00');
+            if(le<pStart||ls>=addU(pStart,gView,cols.length)) return;
+            const lLeft=Math.max(Math.round(days(pStart,ls)/totalDays*cols.length*W),0);
+            const lRight=Math.min(Math.round(days(pStart,new Date(l.end+'T00:00'))/totalDays*cols.length*W+W/7),cols.length*W);
+            const lW=Math.max(lRight-lLeft,2);
+            h+=`<div style="position:absolute;top:0;left:${lLeft}px;width:${lW}px;bottom:0;background:rgba(186,117,23,.25);z-index:3;pointer-events:none;border-left:2px solid rgba(186,117,23,.6)" title="${r.name}: ${l.type||'leave'} (${l.start} – ${l.end})"></div>`;
+          });
+        });
+        if(show){
+          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${cW}px;height:${BH}px;border-radius:5px;background:${ms.color};opacity:.22;cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)"></div>`;
+          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${pW}px;height:${BH}px;border-radius:5px;background:${ms.color};cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)"></div>`;
+          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${cW}px;height:${BH}px;border-radius:5px;border:2px solid ${ms.color};box-sizing:border-box;cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)"></div>`;
+          if(lblFits) h+=`<div class="gbar-lbl" style="left:${cL+8}px;width:${cW-16}px;color:${ms.progress>50?'#fff':ms.color}">${ms.name}</div>`;
+          else h+=`<div class="gbar-out" style="left:${cL+cW+5}px">${ms.name}</div>`;
+          if(gRowH==='comfort'&&cW>80) h+=`<div style="position:absolute;bottom:2px;left:${cL+4}px;font-size:9px;color:${ms.progress>60?'rgba(255,255,255,.8)':ms.color};white-space:nowrap;pointer-events:none">${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' → '+fmtS(ms.end):''}</div>`;
+        }
+        h+=`</div></div>`;
+      });
+    });
+  });
+  h+=`</div>`;
+  cont.innerHTML=h;
+}
+
+// ─── HIERARCHY ───────────────────────────────────────────────────────────────
+function buildHierarchy(){
+  const body=el('hier-body');
+  if(!projects.length){ body.innerHTML='<div class="empty" style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:48px">No projects yet. Click "+ Project" to create one.</div>'; return }
+  body.innerHTML=projects.map(proj=>{
+    const pms=milestones.filter(m=>m.projectId===proj.id);
+    const sites=[...new Set([...(proj.sites||[]),...pms.map(m=>m.site)])].filter(Boolean);
+    const isOpen=expProj[proj.id]!==false;
+    return`<div class="proj-block">
+      <div class="proj-hdr${isOpen?'':' closed'}" onclick="toggleProj('${proj.id}')">
+        <div class="proj-dot" style="background:${proj.color}"></div>
+        <h2>${proj.name}</h2>
+        <span class="meta">${proj.start?fmtS(proj.start):''}${proj.end?' – '+fmtS(proj.end):''} · ${pms.length} milestones · ${sites.length} sites</span>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();openProjModal('${proj.id}')" title="Edit">✎</button>
+        <button class="btn-icon btn-sm" onclick="event.stopPropagation();showDelProj('${proj.id}')" title="Delete" style="color:var(--t3)">🗑</button>
+        <span class="chev${isOpen?' open':''}">▶</span>
+      </div>
+      <div class="del-bar" id="dp-${proj.id}">
+        <span style="flex:1;color:#991B1B">⚠ Delete <strong>${proj.name}</strong> and all its milestones?</span>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelProj('${proj.id}')">Yes, delete</button>
+        <button class="btn btn-sm" onclick="el('dp-${proj.id}').style.display='none'">Cancel</button>
+      </div>
+      ${isOpen?`<div class="proj-body">${sites.length?sites.map(site=>{
+        const sms=pms.filter(m=>m.site===site);
+        const sKey=proj.id+'_'+site;
+        const sOpen=expSite[sKey]!==false;
+        return`<div class="site-block">
+          <div class="site-hdr" onclick="toggleSite('${sKey}')">
+            <span style="font-size:10px;background:${proj.color};color:#fff;border-radius:3px;padding:1px 5px;font-weight:600">${site}</span>
+            <h3>${site}</h3>
+            <span class="meta">${sms.length} milestone${sms.length!==1?'s':''}</span>
+            <button class="btn-icon btn-sm" style="margin-left:auto" onclick="event.stopPropagation();openMsModalForSite('${proj.id}','${site}')" title="Add milestone">+ Milestone</button>
+            <button class="btn-icon btn-sm" onclick="event.stopPropagation();showDelSite('${proj.id}','${site}')" title="Delete site" style="color:var(--t3)">🗑</button>
+            <span class="chev${sOpen?' open':''}">▶</span>
+          </div>
+          <div class="del-bar" id="ds-${proj.id}-${site.replace(/\s+/g,'_')}">
+            <span style="flex:1;color:#991B1B">⚠ Delete site <strong>${site}</strong>${sms.length?` and its <strong>${sms.length} milestone${sms.length!==1?'s':''}</strong>`:''}?</span>
+            <button class="btn btn-sm btn-danger" onclick="confirmDelSite('${proj.id}','${site}')">Yes, delete</button>
+            <button class="btn btn-sm" onclick="el('ds-${proj.id}-${site.replace(/\s+/g,'_')}').style.display='none'">Cancel</button>
+          </div>
+          ${sOpen?`<div>${sms.length?sms.map(ms=>msRow(ms)).join(''):`<div style="padding:12px 44px;font-size:12px;color:var(--t3)">No milestones yet — click "+ Milestone" above.</div>`}</div>`:''}
+        </div>`;
+      }).join(''):'<div style="padding:18px 44px;color:var(--t3);font-size:12px">No sites defined. Edit this project to add sites.</div>'}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function msRow(ms){
+  const s=statusOf(ms.progress), isExp=expMs===ms.id;
+  const assignedMems=teams.filter(t=>(ms.teamIds||[]).includes(t.id));
+  return`<div>
+    <div class="ms-row${isExp?' exp':''}" onclick="openMs('${ms.id}')">
+      <div class="ms-color" style="background:${ms.color}"></div>
+      <div class="ms-row-name">${ms.name}</div>
+      <div class="ms-dates">${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' – '+fmtS(ms.end):''}</div>
+      ${assignedMems.length?`<div style="display:flex;gap:-4px">${assignedMems.slice(0,4).map(m=>`<div class="av" style="background:${m.color}22;color:${m.color};border:1px solid var(--sf)" title="${m.name}">${ini(m.name)}</div>`).join('')}${assignedMems.length>4?`<div class="av" style="background:var(--s2);color:var(--t3)">+${assignedMems.length-4}</div>`:''}</div>`:''}
+      <div class="prog-sm"><div class="prog-fill" style="width:${ms.progress}%;background:${ms.color}"></div></div>
+      <span class="badge" style="background:${s.bg};color:${s.c}">${s.t}</span>
+      <button class="btn-icon btn-sm" onclick="event.stopPropagation();openMsModal('${ms.id}')" title="Edit">✎</button>
+      <button class="btn-icon btn-sm" onclick="event.stopPropagation();showDelMs('${ms.id}')" title="Delete" style="color:var(--t3)">🗑</button>
+    </div>
+    <div class="del-bar" id="dm-${ms.id}">
+      <span style="flex:1;color:#991B1B">⚠ Delete <strong>${ms.name}</strong>?</span>
+      <button class="btn btn-sm btn-danger" onclick="confirmDelMs('${ms.id}')">Yes, delete</button>
+      <button class="btn btn-sm" onclick="el('dm-${ms.id}').style.display='none'">Cancel</button>
+    </div>
+    ${isExp?msDetail(ms):''}
+  </div>`;
+}
+
+function msDetail(ms){
+  const doneTasks=ms.tasks.filter(t=>t.done).length;
+  const assignedMems=teams.filter(t=>(ms.teamIds||[]).includes(t.id));
+  // leave conflicts
+  const msStart=ms.start?new Date(ms.start+'T00:00'):null;
+  const msEnd=ms.end?new Date(ms.end+'T00:00'):msStart;
+  const conflicts=assignedMems.filter(m=>m.leaves.some(l=>{
+    const ls=new Date(l.start+'T00:00'), le=new Date(l.end+'T00:00');
+    return msStart&&msEnd&&ls<=msEnd&&le>=msStart;
+  }));
+  return`<div class="ms-detail">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--t2)">Owner: <strong>${ms.owner||'—'}</strong></span>
+      <span style="font-size:12px;color:var(--t2)">Start: <strong>${fmtD(ms.start)}</strong></span>
+      <span style="font-size:12px;color:var(--t2)">End: <strong>${fmtD(ms.end)||'—'}</strong></span>
+      <span style="font-size:12px;color:var(--t2)">Tasks: <strong>${doneTasks}/${ms.tasks.length}</strong></span>
+      ${conflicts.length?`<span class="leave-tag">⚠ ${conflicts.length} leave conflict${conflicts.length!==1?'s':''}</span>`:''}
+    </div>
+    <div class="detail-grid">
+      <div class="dsec full">
+        <h4>Agenda</h4>
+        <table class="ag-table" id="agt-${ms.id}"><thead>
+          <tr><th style="width:80px">Date</th><th style="width:54px">Time</th><th>Topic</th><th style="width:100px">Who</th><th>Notes</th><th style="width:22px"></th></tr>
+        </thead><tbody>
+          ${ms.agenda.map((a,i)=>`<tr>
+            <td><span class="editable" contenteditable onblur="editAg('${ms.id}',${i},'date',this.textContent)">${a.date||''}</span></td>
+            <td><span class="editable" contenteditable onblur="editAg('${ms.id}',${i},'time',this.textContent)">${a.time||''}</span></td>
+            <td><span class="editable" contenteditable onblur="editAg('${ms.id}',${i},'title',this.textContent)">${a.title||''}</span></td>
+            <td><span class="editable" contenteditable onblur="editAg('${ms.id}',${i},'who',this.textContent)">${a.who||''}</span></td>
+            <td><span class="editable" contenteditable onblur="editAg('${ms.id}',${i},'notes',this.textContent)">${a.notes||''}</span></td>
+            <td><button class="del-btn" onclick="delAg('${ms.id}',${i})">✕</button></td>
+          </tr>`).join('')}
+        </tbody></table>
+        <button class="add-row" onclick="addAg('${ms.id}')">+ Add agenda item</button>
+      </div>
+      <div class="dsec">
+        <h4>Tasks (${doneTasks}/${ms.tasks.length})</h4>
+        <div data-tf="${ms.id}">
+          ${ms.tasks.map((t,i)=>`<div class="task-row">
+            <div class="chk${t.done?' done':''}" onclick="toggleTask('${ms.id}',${i})">${t.done?'✓':''}</div>
+            <div class="task-lbl${t.done?' done':''}">${t.label}</div>
+            <div class="own-tag">${t.owner||''}</div>
+            <button class="del-btn" onclick="delTask('${ms.id}',${i})">✕</button>
+          </div>`).join('')}
+        </div>
+        <button class="add-row" onclick="addTask('${ms.id}')">+ Add task</button>
+      </div>
+      <div class="dsec">
+        <h4>Team assigned</h4>
+        <div class="chips">
+          ${assignedMems.length?assignedMems.map(m=>`<span class="chip" style="cursor:pointer" onclick="showSec('team')">
+            <div class="av" style="background:${m.color}22;color:${m.color}">${ini(m.name)}</div>${m.name}
+            ${conflicts.some(c=>c.id===m.id)?'<span class="leave-tag" style="font-size:9px;padding:1px 4px">Leave conflict</span>':''}
+          </span>`).join(''):'<span style="font-size:12px;color:var(--t3)">No team members assigned</span>'}
+        </div>
+        <h4 style="margin-top:12px">Dependencies</h4>
+        <div class="chips">
+          ${(ms.deps||[]).length?(ms.deps).map(d=>`<span class="chip"><span class="chip-dot" style="background:${ms.color}"></span>${d}</span>`).join(''):'<span style="font-size:12px;color:var(--t3)">None</span>'}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ─── DETAIL ACTIONS ──────────────────────────────────────────────────────────
+function editAg(msId,i,field,val){ const ms=milestones.find(m=>m.id===msId); if(ms&&ms.agenda[i]) ms.agenda[i][field]=val.trim(); saveData() }
+function delAg(msId,i){ const ms=milestones.find(m=>m.id===msId); ms.agenda.splice(i,1); rerender(msId) }
+function addAg(msId){ const ms=milestones.find(m=>m.id===msId); ms.agenda.push({id:uid(),date:ms.start||'',time:'09:00',title:'',who:'',notes:''}); rerender(msId) }
+
+function toggleTask(msId,i){ const ms=milestones.find(m=>m.id===msId); ms.tasks[i].done=!ms.tasks[i].done; recalc(ms); rerender(msId); buildDashboard() }
+function delTask(msId,i){ const ms=milestones.find(m=>m.id===msId); ms.tasks.splice(i,1); recalc(ms); rerender(msId); buildDashboard() }
+function addTask(msId){
+  const cont=document.querySelector(`[data-tf="${msId}"]`); if(!cont)return;
+  const fid='tf-'+msId; if(el(fid)){ el(fid).style.display=el(fid).style.display==='none'?'flex':'none'; el(fid)?.querySelector('input')?.focus(); return }
+  const f=document.createElement('div'); f.id=fid; f.className='inline-form';
+  f.innerHTML=`<input class="iinput" id="ti-${msId}" placeholder="Task description" style="flex:2" onkeydown="if(event.key==='Enter')saveTask('${msId}');if(event.key==='Escape')this.closest('.inline-form').style.display='none'">
+    <input class="iinput" id="to-${msId}" placeholder="Owner" style="flex:1" value="Team" onkeydown="if(event.key==='Enter')saveTask('${msId}')">
+    <button class="btn btn-sm btn-primary" onclick="saveTask('${msId}')">Add</button>
+    <button class="btn btn-sm" onclick="el('${fid}').style.display='none'">✕</button>`;
+  cont.after(f); f.querySelector('input').focus();
+}
+function saveTask(msId){ const lbl=el('ti-'+msId)?.value?.trim(); if(!lbl)return; const own=el('to-'+msId)?.value?.trim()||'Team'; const ms=milestones.find(m=>m.id===msId); ms.tasks.push({id:uid(),label:lbl,done:false,owner:own}); recalc(ms); rerender(msId); buildDashboard() }
+
+function rerender(msId){ buildHierarchy(); buildDashboard(); buildGantt(); buildTeam(); saveData() }
+
+// ─── DELETE ACTIONS ──────────────────────────────────────────────────────────
+function showDelProj(id){ document.querySelectorAll('[id^="dp-"],[id^="ds-"],[id^="dm-"]').forEach(e=>e.style.display='none'); el('dp-'+id).style.display='flex' }
+function confirmDelProj(id){ projects=projects.filter(p=>p.id!==id); milestones=milestones.filter(m=>m.projectId!==id); delete expProj[id]; renderAll() }
+function showDelSite(projId,site){ document.querySelectorAll('[id^="dp-"],[id^="ds-"],[id^="dm-"]').forEach(e=>e.style.display='none'); el('ds-'+projId+'-'+site.replace(/\s+/g,'_')).style.display='flex' }
+function confirmDelSite(projId,site){ const p=projects.find(x=>x.id===projId); if(p)p.sites=p.sites.filter(s=>s!==site); milestones=milestones.filter(m=>!(m.projectId===projId&&m.site===site)); delete expSite[projId+'_'+site]; renderAll() }
+function showDelMs(id){ document.querySelectorAll('[id^="dp-"],[id^="ds-"],[id^="dm-"]').forEach(e=>e.style.display='none'); el('dm-'+id).style.display='flex' }
+function confirmDelMs(id){ milestones=milestones.filter(m=>m.id!==id); if(expMs===id)expMs=null; renderAll() }
+function showDelMem(id){ document.querySelectorAll('[id^="dme-"]').forEach(e=>e.style.display='none'); el('dme-'+id).style.display='flex' }
+function confirmDelMem(id){ teams=teams.filter(t=>t.id!==id); renderAll() }
+
+// ─── TOGGLE ──────────────────────────────────────────────────────────────────
+function toggleProj(id){ expProj[id]=!expProj[id]; buildHierarchy() }
+function toggleSite(key){ expSite[key]=!expSite[key]; buildHierarchy() }
+function openMs(id){ expMs=expMs===id?null:id; buildHierarchy() }
+
+// ─── MODALS ──────────────────────────────────────────────────────────────────
+function openModal(type,editId){ if(type==='project')openProjModal(editId); else if(type==='milestone')openMsModal(editId); else if(type==='member')openMemModal(editId) }
+function closeModal(type){ el('modal-'+type).classList.remove('open') }
+
+// SITE FIELDS
+function renderSiteFields(sites){
+  el('site-list').innerHTML=(sites||['']).map((s,i)=>`<div class="dyn-row">
+    <input class="dyn-input" value="${s}" placeholder="Site name, e.g. Site 1" id="sf-${i}">
+    <button class="btn-icon" onclick="removeSiteField(${i})">✕</button>
+  </div>`).join('');
+}
+function addSiteField(){ const vals=[...document.querySelectorAll('[id^=sf-]')].map(e=>e.value); renderSiteFields([...vals,'']) }
+function removeSiteField(i){ const vals=[...document.querySelectorAll('[id^=sf-]')].map((e,j)=>j!==i?e.value:null).filter(v=>v!==null); renderSiteFields(vals.length?vals:['']) }
+
+// PROJECT MODAL
+function openProjModal(editId){
+  eProjId=editId||null;
+  const p=editId?projects.find(x=>x.id===editId):null;
+  el('proj-title').textContent=p?'Edit project':'New project';
+  el('p-name').value=p?.name||''; el('p-desc').value=p?.desc||'';
+  el('p-start').value=p?.start||''; el('p-end').value=p?.end||'';
+  buildCp('proj-cp',pickProj);
+  if(p){ const idx=PAL.findIndex(x=>x.c===p.color); if(idx>=0){ qsa('#proj-cp .cp',e=>e.classList.remove('sel')); document.querySelectorAll('#proj-cp .cp')[idx]?.classList.add('sel'); selProjCol=PAL[idx] } } else selProjCol=PAL[1];
+  renderSiteFields(p?.sites||['']);
+  el('modal-project').classList.add('open');
+}
+function saveProject(){
+  const name=el('p-name').value.trim(); if(!name){alert('Please enter a project name.');return}
+  const sites=[...document.querySelectorAll('[id^=sf-]')].map(e=>e.value.trim()).filter(Boolean);
+  if(!sites.length){alert('Add at least one site.');return}
+  if(eProjId){
+    const p=projects.find(x=>x.id===eProjId);
+    sites.forEach(s=>{ if(!(eProjId+'_'+s in expSite)) expSite[eProjId+'_'+s]=true });
+    Object.assign(p,{name,desc:el('p-desc').value,start:el('p-start').value,end:el('p-end').value,color:selProjCol.c,colorLight:selProjCol.l,sites});
+  } else {
+    const nid=uid(); expProj[nid]=true; sites.forEach(s=>expSite[nid+'_'+s]=true);
+    projects.push({id:nid,name,desc:el('p-desc').value,start:el('p-start').value,end:el('p-end').value,color:selProjCol.c,colorLight:selProjCol.l,sites});
+  }
+  closeModal('project'); renderAll();
+}
+
+// MS TEAM ROWS
+function renderMsTeamRows(){
+  el('ms-team-list').innerHTML=msTeamRows.map((tid,i)=>`<div class="dyn-row">
+    <select class="dyn-select" id="mtr-${i}" style="flex:1">
+      <option value="">Select team member</option>
+      ${teams.map(t=>`<option value="${t.id}"${t.id===tid?' selected':''}>${t.name} — ${t.role}</option>`).join('')}
+    </select>
+    <button class="btn-icon" onclick="msTeamRows.splice(${i},1);renderMsTeamRows()">✕</button>
+  </div>`).join('');
+}
+function addMsTeamRow(){ msTeamRows.push(''); renderMsTeamRows() }
+function getMsTeamIds(){ return [...document.querySelectorAll('[id^=mtr-]')].map(e=>e.value).filter(Boolean) }
+
+// MS LEAVE CONFLICTS PREVIEW
+function updateMsLeavePreview(){
+  const projId=el('ms-proj').value, site=el('ms-site').value;
+  const start=el('ms-start').value, end=el('ms-end').value;
+  const teamIds=getMsTeamIds();
+  if(!start||!teamIds.length){ el('ms-leave-list').innerHTML='<span style="color:var(--t3)">Fill in dates and team members to see conflicts</span>'; return }
+  const msS=new Date(start+'T00:00'), msE=end?new Date(end+'T00:00'):msS;
+  const conflicts=teams.filter(t=>teamIds.includes(t.id)&&t.leaves.some(l=>{
+    const ls=new Date(l.start+'T00:00'), le=new Date(l.end+'T00:00');
+    return ls<=msE&&le>=msS;
+  }));
+  el('ms-leave-list').innerHTML=conflicts.length
+    ?conflicts.map(m=>`<span class="leave-tag" style="margin:2px 2px 0 0;display:inline-block">⚠ ${m.name}: ${m.leaves.filter(l=>{const ls=new Date(l.start+'T00:00'),le=new Date(l.end+'T00:00');return ls<=msE&&le>=msS}).map(l=>fmtS(l.start)+' – '+fmtS(l.end)).join(', ')}</span>`).join('')
+    :'<span style="color:var(--t3);font-size:12px">No leave conflicts detected</span>';
+}
+
+// MS MODAL
+function openMsModal(editId){
+  eMsId=editId||null;
+  const ms=editId?milestones.find(m=>m.id===editId):null;
+  el('ms-title').textContent=ms?'Edit milestone':'New milestone';
+  el('ms-name').value=ms?.name||''; el('ms-start').value=ms?.start||''; el('ms-end').value=ms?.end||''; el('ms-owner').value=ms?.owner||''; el('ms-deps').value=(ms?.deps||[]).join(', ');
+  buildCp('ms-cp',pickMs);
+  if(ms){ const idx=PAL.findIndex(p=>p.c===ms.color); if(idx>=0){ qsa('#ms-cp .cp',e=>e.classList.remove('sel')); document.querySelectorAll('#ms-cp .cp')[idx]?.classList.add('sel'); selMsCol=PAL[idx] } } else selMsCol=PAL[0];
+  el('ms-proj').innerHTML=projects.map(p=>`<option value="${p.id}"${ms&&p.id===ms.projectId?' selected':''}>${p.name}</option>`).join('');
+  populateSiteSel(ms?.site);
+  msTeamRows=[...(ms?.teamIds||[])]; renderMsTeamRows();
+  updateMsLeavePreview();
+  el('modal-milestone').classList.add('open');
+}
+function openMsModalForSite(projId,site){
+  openMsModal(); setTimeout(()=>{ el('ms-proj').value=projId; populateSiteSel(site) },50);
+}
+function populateSiteSel(selSite){
+  const projId=el('ms-proj').value;
+  const p=projects.find(x=>x.id===projId);
+  el('ms-site').innerHTML=(p?.sites||[]).map(s=>`<option value="${s}"${s===selSite?' selected':''}>${s}</option>`).join('');
+  updateMsLeavePreview();
+}
+function saveMilestone(){
+  const name=el('ms-name').value.trim(); if(!name){alert('Please enter a milestone name.');return}
+  const projId=el('ms-proj').value; if(!projId){alert('Please select a project.');return}
+  const site=el('ms-site').value; const deps=el('ms-deps').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const teamIds=getMsTeamIds();
+  if(eMsId){
+    const ms=milestones.find(m=>m.id===eMsId);
+    Object.assign(ms,{name,projectId:projId,site,start:el('ms-start').value,end:el('ms-end').value,owner:el('ms-owner').value,color:selMsCol.c,colorLight:selMsCol.l,deps,teamIds});
+  } else {
+    milestones.push({id:uid(),projectId:projId,site,name,start:el('ms-start').value,end:el('ms-end').value,owner:el('ms-owner').value,color:selMsCol.c,colorLight:selMsCol.l,progress:0,deps,teamIds,agenda:[],tasks:[]});
+  }
+  closeModal('milestone'); renderAll();
+}
+
+// MEMBER MODAL
+function renderMemAssigns(){
+  el('mem-assign-list').innerHTML=memAssigns.map((a,i)=>`<div class="dyn-row">
+    <select class="dyn-select" style="flex:1" onchange="memAssigns[${i}].projectId=this.value;memAssigns[${i}].site='';renderMemAssigns()">
+      <option value="">Select project</option>
+      ${projects.map(p=>`<option value="${p.id}"${p.id===a.projectId?' selected':''}>${p.name}</option>`).join('')}
+    </select>
+    <select class="dyn-select" style="flex:1" onchange="memAssigns[${i}].site=this.value">
+      <option value="">Select site</option>
+      ${(projects.find(p=>p.id===a.projectId)?.sites||[]).map(s=>`<option value="${s}"${s===a.site?' selected':''}>${s}</option>`).join('')}
+    </select>
+    <button class="btn-icon" onclick="memAssigns.splice(${i},1);renderMemAssigns()">x</button>
+  </div>`).join('');
+}
+function addMemAssign(){ memAssigns.push({projectId:'',site:''}); renderMemAssigns() }
+function renderMemLeaves(){
+  el('mem-leave-list').innerHTML=memLeaves.map((l,i)=>`<div class="dyn-row">
+    <input type="date" value="${l.start||''}" class="dyn-input" onchange="memLeaves[${i}].start=this.value" style="flex:1">
+    <input type="date" value="${l.end||''}"   class="dyn-input" onchange="memLeaves[${i}].end=this.value"   style="flex:1">
+    <input value="${l.reason||''}" placeholder="Reason" class="dyn-input" onchange="memLeaves[${i}].reason=this.value" style="flex:1.5">
+    <button class="btn-icon" onclick="memLeaves.splice(${i},1);renderMemLeaves()">x</button>
+  </div>`).join('');
+}
+function addMemLeave(){ memLeaves.push({start:'',end:'',reason:''}); renderMemLeaves() }
+function openMemModal(editId){
+  eMemId=editId||null;
+  const m=editId?teams.find(t=>t.id===editId):null;
+  el('mem-title').textContent=m?'Edit member':'New team member';
+  el('mem-name').value=m?.name||''; el('mem-role').value=m?.role||''; el('mem-email').value=m?.email||'';
+  el('mem-modules').value=(m?.modules||[]).join(', ');
+  el('mem-cost').value=m?.costRate||''; el('mem-bill').value=m?.billRate||'';
+  buildCp('mem-cp',pickMem);
+  if(m){ const idx=PAL.findIndex(p=>p.c===m.color); if(idx>=0){ qsa('#mem-cp .cp',e=>e.classList.remove('sel')); document.querySelectorAll('#mem-cp .cp')[idx]?.classList.add('sel'); selMemCol=PAL[idx] } } else selMemCol=PAL[2];
+  memAssigns=m?JSON.parse(JSON.stringify(m.assignments||[])):[{projectId:'',site:''}];
+  memLeaves=m?JSON.parse(JSON.stringify(m.leaves||[])):[];
+  renderMemAssigns(); renderMemLeaves();
+  el('modal-member').classList.add('open');
+}
+function saveMember(){
+  const name=el('mem-name').value.trim(); if(!name){alert('Please enter a name.');return}
+  const role=el('mem-role').value.trim(); const email=el('mem-email').value.trim();
+  const costRate=parseFloat(el('mem-cost').value)||0; const billRate=parseFloat(el('mem-bill').value)||0;
+  const modules=el('mem-modules').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const assignments=memAssigns.filter(a=>a.projectId);
+  const leaves=memLeaves.filter(l=>l.start);
+  if(eMemId){ Object.assign(teams.find(t=>t.id===eMemId),{name,role,email,color:selMemCol.c,assignments,modules,costRate,billRate,leaves}) }
+  else teams.push({id:uid(),name,role,email,color:selMemCol.c,assignments,modules,costRate,billRate,leaves});
+  closeModal('member'); renderAll();
+}
+
+// TEAM VIEW
+function buildTeam(){
+  const filterProj=el('tf-proj')?.value||'', filterSite=el('tf-site')?.value||'', filterRole=el('tf-role')?.value||'';
+  const search=(el('tf-search')?.value||'').toLowerCase();
+  const tfp=el('tf-proj'); if(tfp){ const c=tfp.value; tfp.innerHTML='<option value="">All projects</option>'+projects.map(p=>`<option value="${p.id}"${p.id===c?' selected':''}>${p.name}</option>`).join('') }
+  const allSites=[...new Set(projects.filter(p=>!filterProj||p.id===filterProj).flatMap(p=>p.sites||[]))];
+  const tfs=el('tf-site'); if(tfs){ const c=tfs.value; tfs.innerHTML='<option value="">All sites</option>'+allSites.map(s=>`<option value="${s}"${s===c?' selected':''}>${s}</option>`).join('') }
+  const allRoles=[...new Set(teams.map(t=>t.role).filter(Boolean))];
+  const tfr=el('tf-role'); if(tfr){ const c=tfr.value; tfr.innerHTML='<option value="">All roles</option>'+allRoles.map(r=>`<option value="${r}"${r===c?' selected':''}>${r}</option>`).join('') }
+  let filtered=teams.filter(m=>{
+    if(search&&!m.name.toLowerCase().includes(search)&&!m.role.toLowerCase().includes(search)) return false;
+    if(filterRole&&m.role!==filterRole) return false;
+    if(filterProj&&!m.assignments.some(a=>a.projectId===filterProj)) return false;
+    if(filterSite&&!m.assignments.some(a=>a.site===filterSite)) return false;
+    return true;
+  });
+  const today=new Date(); today.setHours(0,0,0,0);
+  const onLeave=filtered.filter(m=>m.leaves.some(l=>new Date(l.start+'T00:00')<=today&&new Date(l.end+'T00:00')>=today)).length;
+  const totalCost=filtered.reduce((s,m)=>s+(m.costRate||0),0);
+  const totalBill=filtered.reduce((s,m)=>s+(m.billRate||0),0);
+  el('team-stats').innerHTML=[
+    {sl:'Team members',sv:filtered.length,ss:'Shown'},
+    {sl:'Cost rate',sv:'£'+totalCost+'/hr',ss:'Combined hourly cost'},
+    {sl:'Bill rate',sv:'£'+totalBill+'/hr',ss:'Combined billing'},
+    {sl:'On leave today',sv:onLeave,ss:'Currently unavailable',col:onLeave>0?'var(--amber)':''},
+  ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
+  el('team-grid').innerHTML=filtered.length?filtered.map(m=>{
+    const av=ini(m.name);
+    const projNames=m.assignments.map(a=>{ const p=projects.find(x=>x.id===a.projectId); return p?`${p.name}${a.site?' / '+a.site:''}`:null }).filter(Boolean);
+    const activeLeave=m.leaves.find(l=>new Date(l.start+'T00:00')<=today&&new Date(l.end+'T00:00')>=today);
+    const nextLeave=m.leaves.filter(l=>new Date(l.start+'T00:00')>today).sort((a,b)=>a.start>b.start?1:-1)[0];
+    const assignedMs=milestones.filter(ms=>(ms.teamIds||[]).includes(m.id));
+    const margin=(m.billRate||0)-(m.costRate||0);
+    return `<div class="mem-card">
+      <div class="mem-hdr">
+        <div class="mem-av" style="background:${m.color}22;color:${m.color}">${av}</div>
+        <div class="mem-info"><h3>${m.name}</h3><div class="mem-role">${m.role}${m.email?' · '+m.email:''}</div></div>
+        ${activeLeave?'<span class="leave-tag">On leave</span>':''}
+        <button class="btn-icon btn-sm" onclick="openMemModal('${m.id}')">e</button>
+        <button class="btn-icon btn-sm" onclick="showDelMem('${m.id}')" style="color:var(--t3)">x</button>
+      </div>
+      <div class="del-bar" id="dme-${m.id}">
+        <span style="flex:1;color:#991B1B">Delete ${m.name}?</span>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelMem('${m.id}')">Yes, delete</button>
+        <button class="btn btn-sm" onclick="el('dme-${m.id}').style.display='none'">Cancel</button>
+      </div>
+      <div class="mem-body">
+        ${projNames.length?`<div class="mem-row"><span class="mem-lbl">Project</span><div class="mem-val mem-chips">${projNames.map(p=>`<span class="mem-chip">${p}</span>`).join('')}</div></div>`:''}
+        ${m.modules&&m.modules.length?`<div class="mem-row"><span class="mem-lbl">Modules</span><div class="mem-val mem-chips">${m.modules.map(mod=>`<span class="mem-chip" style="background:${m.color}15;border-color:${m.color}44;color:${m.color}">${mod}</span>`).join('')}</div></div>`:''}
+        ${assignedMs.length?`<div class="mem-row"><span class="mem-lbl">Milestones</span><div class="mem-val mem-chips">${assignedMs.slice(0,3).map(ms=>`<span class="mem-chip" style="cursor:pointer;background:${ms.color}15;border-color:${ms.color}44;color:${ms.color}" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)">${ms.name}</span>`).join('')}${assignedMs.length>3?`<span class="mem-chip">+${assignedMs.length-3}</span>`:''}</div></div>`:''}
+        ${activeLeave?`<div style="background:#FEF3C7;border-radius:var(--rsm);padding:6px 9px;font-size:11px;color:#92400E">On leave until ${fmtD(activeLeave.end)} — ${activeLeave.reason||'Leave'}</div>`:''}
+        ${!activeLeave&&nextLeave?`<div class="mem-row"><span class="mem-lbl">Next leave</span><div class="mem-val" style="color:var(--amber);font-size:11px">${fmtS(nextLeave.start)} – ${fmtS(nextLeave.end)}${nextLeave.reason?' ('+nextLeave.reason+')':''}</div></div>`:''}
+      </div>
+      <div class="mem-ftr">
+        <div class="rate-box"><div class="rv" style="color:#993C1D">£${m.costRate||0}/hr</div><div class="rl">Cost rate</div></div>
+        <div class="rate-divider"></div>
+        <div class="rate-box"><div class="rv" style="color:var(--teal)">£${m.billRate||0}/hr</div><div class="rl">Bill rate</div></div>
+        <div class="rate-divider"></div>
+        <div class="rate-box"><div class="rv" style="color:${margin>=0?'var(--green)':'var(--red)'}">£${margin}/hr</div><div class="rl">Margin</div></div>
+      </div>
+    </div>`;
+  }).join(''):`<div class="empty" style="grid-column:1/-1">No team members match your filters.</div>`;
+}
+
+// ─── FORECAST ────────────────────────────────────────────────────────────────
+// The forecast period is fully configurable: fcPeriodStart / fcPeriodEnd are
+// 'YYYY-MM' strings. FC_MONTHS is regenerated whenever the period changes.
+let fcPeriodStart = '2025-11';
+let fcPeriodEnd   = '2026-05';
+let FC_MONTHS = [];   // [{key:'2025-11', label:'Nov', year:2025, monthNum:10, hours:140}, ...]
+let FC_WEEKS  = [];   // derived calendar weeks within FC_MONTHS
+
+const MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WORK_DAYS_PER_WEEK=5, HOURS_PER_DAY=8;
+
+function daysInMonth(year,monthNum){ return new Date(year,monthNum+1,0).getDate() }
+// Rough standard available hours for a month: count weekdays * 8h
+function standardMonthHours(year,monthNum){
+  const dim=daysInMonth(year,monthNum);
+  let weekdays=0;
+  for(let d=1;d<=dim;d++){ const wd=new Date(year,monthNum,d).getDay(); if(wd!==0&&wd!==6) weekdays++; }
+  return weekdays*HOURS_PER_DAY;
+}
+
+// Build FC_MONTHS from fcPeriodStart..fcPeriodEnd (inclusive), each as 'YYYY-MM'
+function buildFcMonths(){
+  const months=[];
+  let [sy,sm]=fcPeriodStart.split('-').map(Number);
+  let [ey,em]=fcPeriodEnd.split('-').map(Number);
+  sm-=1; em-=1; // to 0-indexed
+  let y=sy, m=sm;
+  let guard=0;
+  while((y<ey || (y===ey && m<=em)) && guard<60){
+    const key=`${y}-${String(m+1).padStart(2,'0')}`;
+    months.push({ key, label:MONTH_NAMES[m], year:y, monthNum:m, hours:standardMonthHours(y,m) });
+    m++; if(m>11){m=0;y++}
+    guard++;
+  }
+  return months;
+}
+
+// Build calendar weeks (Mon-Sun) within each month in FC_MONTHS
+function buildFcWeeksFromMonths(months){
+  const weeks=[];
+  months.forEach(mo=>{
+    const firstDay=new Date(mo.year,mo.monthNum,1);
+    const lastDay=new Date(mo.year,mo.monthNum+1,0);
+    let cur=new Date(firstDay);
+    cur.setDate(cur.getDate()-((cur.getDay()+6)%7));
+    let wIdx=1;
+    while(cur<=lastDay){
+      const weekEnd=new Date(cur); weekEnd.setDate(cur.getDate()+6);
+      const clampedStart=cur<firstDay?firstDay:new Date(cur);
+      const clampedEnd=weekEnd>lastDay?lastDay:weekEnd;
+      const daysInM=Math.round((lastDay-firstDay)/86400000)+1;
+      const daysInClamp=Math.round((clampedEnd-clampedStart)/86400000)+1;
+      const weekHours=Math.round((mo.hours/daysInM)*daysInClamp*10)/10;
+      weeks.push({
+        key:mo.key+'_w'+wIdx, monthKey:mo.key, monthLabel:mo.label,
+        label:'W'+wIdx, fullLabel:mo.label+' W'+wIdx,
+        start:clampedStart.toISOString().slice(0,10), end:clampedEnd.toISOString().slice(0,10),
+        hours:weekHours
+      });
+      wIdx++;
+      cur.setDate(cur.getDate()+7);
+    }
+  });
+  return weeks;
+}
+
+function regenerateFcPeriod(){
+  FC_MONTHS = buildFcMonths();
+  FC_WEEKS = buildFcWeeksFromMonths(FC_MONTHS);
+  // reset the weekly month-filter dropdown so stale options don't linger
+  const wmSel=el('fc-week-month');
+  if(wmSel) wmSel.innerHTML='<option value="all">All months</option>';
+}
+
+let fcResources=[];
+let editingFcId=null;
+
+function seedForecast(){
+  fcPeriodStart='2025-01'; fcPeriodEnd='2028-12';
+  regenerateFcPeriod();
+  // Source percentages from the original tracker — converted to actual hours below
+  // using each month's real available hours (weekdays × 8h) and distributed across weeks.
+  const seedPct=[
+    {id:'fc1',name:'Anant Ratnam',team:'Green',role:'Senior Functional Consultant Offshore',region:'IND',billD:680,billH:85,costH:46.89,pct:{'2025-11':50,'2025-12':50,'2026-01':50,'2026-02':75,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc2',name:'Dilukshan Udayakumar',team:'Blue',role:'Functional Consultant',region:'UK',billD:800,billH:100,costH:77.68,pct:{'2025-11':110,'2025-12':75,'2026-01':100,'2026-02':50,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc3',name:'Godfrri Croos',team:'Green',role:'Senior Functional Consultant Offshore',region:'SL',billD:680,billH:85,costH:41.07,pct:{'2025-11':75,'2025-12':75,'2026-01':50,'2026-02':75,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc4',name:'Intizar Rafaideen',team:'Blue/Green/Yellow',role:'Project Manager',region:'UK',billD:800,billH:100,costH:72.55,pct:{'2025-11':100,'2025-12':50,'2026-01':80,'2026-02':80,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc5',name:'Jahangir Ali',team:'Blue/Green/Yellow',role:'Functional Consultant',region:'UK',billD:800,billH:100,costH:79.77,pct:{'2025-11':50,'2025-12':50,'2026-01':50,'2026-02':50,'2026-03':50,'2026-04':50,'2026-05':50}},
+    {id:'fc6',name:'Jeevan Venkatesh',team:'Blue/Green/Yellow',role:'Senior Technical Consultant Offshore',region:'IND',billD:680,billH:85,costH:55.31,pct:{'2025-11':50,'2025-12':0,'2026-01':0,'2026-02':20,'2026-03':50,'2026-04':50,'2026-05':50}},
+    {id:'fc7',name:'Jonathan Flynn',team:'Yellow',role:'Functional Consultant',region:'US',billD:800,billH:100,costH:99.79,pct:{'2025-11':25,'2025-12':25,'2026-01':0,'2026-02':25,'2026-03':0,'2026-04':0,'2026-05':0}},
+    {id:'fc8',name:'Kedar Mahalangrekar',team:'Blue/Green/Yellow',role:'Senior Technical Consultant Offshore',region:'IND',billD:680,billH:85,costH:55.46,pct:{'2025-11':15,'2025-12':10,'2026-01':10,'2026-02':10,'2026-03':10,'2026-04':10,'2026-05':10}},
+    {id:'fc9',name:'Nilanka Wickramasinghe',team:'Blue/Green/Yellow',role:'Program Manager',region:'UK',billD:850,billH:106.25,costH:107.97,pct:{'2025-11':15,'2025-12':15,'2026-01':20,'2026-02':20,'2026-03':20,'2026-04':20,'2026-05':20}},
+    {id:'fc10',name:'Niranjan Vaidyakularatne',team:'Green',role:'Senior Functional Consultant',region:'SL',billD:850,billH:106.25,costH:74.11,pct:{'2025-11':50,'2025-12':50,'2026-01':75,'2026-02':75,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc11',name:'Poshitha Ratnayake',team:'Blue/Green/Yellow',role:'Senior Functional Consultant',region:'UK',billD:850,billH:106.25,costH:101.29,pct:{'2025-11':100,'2025-12':75,'2026-01':100,'2026-02':75,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc12',name:'Shamika Uduwella',team:'Blue',role:'Senior Functional Consultant',region:'UK',billD:850,billH:106.25,costH:85.68,pct:{'2025-11':100,'2025-12':75,'2026-01':100,'2026-02':50,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc13',name:'Shasheer Sharjahan',team:'Green',role:'Senior Functional Consultant',region:'UK',billD:850,billH:106.25,costH:87.5,pct:{'2025-11':50,'2025-12':50,'2026-01':50,'2026-02':50,'2026-03':20,'2026-04':20,'2026-05':20}},
+    {id:'fc14',name:'Sithum De Silva',team:'Green',role:'Functional Consultant',region:'UK',billD:800,billH:100,costH:55.23,pct:{'2025-11':50,'2025-12':50,'2026-01':50,'2026-02':50,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc15',name:'Swetha Gunaseelan',team:'Blue/Green/Yellow',role:'Senior Functional Consultant Offshore',region:'SL',billD:680,billH:85,costH:38.22,pct:{'2025-11':75,'2025-12':50,'2026-01':75,'2026-02':50,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc16',name:'Trevin Bastiansz',team:'Blue',role:'Functional Consultant',region:'UK',billD:680,billH:85,costH:22.31,pct:{'2025-11':100,'2025-12':100,'2026-01':100,'2026-02':75,'2026-03':100,'2026-04':100,'2026-05':100}},
+    {id:'fc17',name:'Venumi Kaluarachchi',team:'Yellow',role:'Senior Functional Consultant Offshore',region:'SL',billD:680,billH:85,costH:44.52,pct:{'2025-11':75,'2025-12':75,'2026-01':75,'2026-02':75,'2026-03':100,'2026-04':100,'2026-05':100}},
+  ];
+  fcResources = seedPct.map(s=>{
+    const r={id:s.id,name:s.name,team:s.team,role:s.role,region:s.region,billD:s.billD,billH:s.billH,costH:s.costH,weeklyAlloc:{},fcLeaves:[]};
+    Object.keys(s.pct).forEach(monthKey=>{
+      const m=FC_MONTHS.find(x=>x.key===monthKey);
+      if(!m) return; // month outside current period, skip
+      setMonthAllocOnResource(r, monthKey, s.pct[monthKey]);
+    });
+    return r;
+  });
+}
+
+// Sync forecast resources into the Team list (adds missing members, doesn't duplicate or overwrite manual edits)
+function syncForecastToTeam(){
+  const defaultProjId = projects[0]?.id || '';
+  const defaultSite = projects[0]?.sites?.[0] || '';
+  let added = 0;
+  fcResources.forEach(fr=>{
+    const exists = teams.find(t=>t.name.toLowerCase().trim()===fr.name.toLowerCase().trim());
+    if(exists) return;
+    const colorPool=['#185FA5','#1D9E75','#BA7517','#534AB7','#993C1D','#0F6E56','#3B6D11','#6B6960'];
+    teams.push({
+      id:uid(),
+      name:fr.name,
+      role:fr.role,
+      email:'',
+      color:colorPool[added % colorPool.length],
+      assignments: defaultProjId ? [{projectId:defaultProjId, site:defaultSite}] : [],
+      modules:[],
+      costRate:fr.costH,
+      billRate:fr.billH,
+      leaves:[]
+    });
+    added++;
+  });
+  return added;
+}
+
+// ── PERIOD PICKER ──────────────────────────────────────────────────────────
+function openPeriodModal(){
+  el('fcp-start').value = fcPeriodStart;
+  el('fcp-end').value = fcPeriodEnd;
+  el('modal-fcperiod').classList.add('open');
+}
+function saveFcPeriod(){
+  const s=el('fcp-start').value, e=el('fcp-end').value;
+  if(!s||!e){ alert('Please choose both a start and end month.'); return }
+  if(s>e){ alert('Start month must be before or equal to the end month.'); return }
+  const [sy,sm]=s.split('-').map(Number), [ey,em]=e.split('-').map(Number);
+  const monthSpan=(ey-sy)*12+(em-sm)+1;
+  if(monthSpan>60){ alert('Please choose a period of 5 years or less.'); return }
+  fcPeriodStart=s; fcPeriodEnd=e;
+  regenerateFcPeriod();
+  closeModal('fcperiod');
+  buildForecast(); saveData();
+}
+
+function buildForecast(){
+  // keep the period label up to date
+  const lbl=el('fc-period-label');
+  if(lbl){
+    const sM=FC_MONTHS[0], eM=FC_MONTHS[FC_MONTHS.length-1];
+    lbl.textContent = sM&&eM ? `${sM.label} ${sM.year} – ${eM.label} ${eM.year}` : 'No period set';
+  }
+  if(!fcResources.length){el('fc-main').innerHTML='<div class="empty" style="padding:48px">No resources yet.</div>';el('fc-kpis').innerHTML='';el('fc-npm-bar').innerHTML='';return}
+  const view=el('fc-view')?.value||'summary';
+  // KPIs
+  let tRev=0,tCost=0,tH=0;
+  fcResources.forEach(r=>{const t=fcTotals(r);tRev+=t.totalRevenue;tCost+=t.totalCost;tH+=t.totalHours});
+  const tNpm=tRev>0?(tRev-tCost)/tRev:0;
+  el('fc-kpis').innerHTML=[
+    {sl:'Total revenue',sv:'£'+fc2(tRev),ss:lbl?lbl.textContent:''},
+    {sl:'Total cost',sv:'£'+fc2(tCost),ss:lbl?lbl.textContent:''},
+    {sl:'Gross margin',sv:'£'+fc2(tRev-tCost),ss:'Revenue minus cost',col:tRev>tCost?'var(--green)':'var(--red)'},
+    {sl:'Overall NPM',sv:fcp(tNpm),ss:'Net profit margin',col:npmCol(tNpm)},
+    {sl:'Total hours',sv:fc2(tH),ss:'All resources'},
+    {sl:'Resources',sv:fcResources.length,ss:'In forecast'},
+  ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
+
+  // NPM bar
+  let nb=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Monthly net profit margin & financials</div>
+  <div style="display:flex;gap:6px;align-items:flex-end;height:70px;overflow-x:auto">`;
+  FC_MONTHS.forEach(m=>{
+    let mR=0,mC=0,mH=0;
+    fcResources.forEach(r=>{const c=fcCalcMonth(r,m.key);mR+=c.revenue;mC+=c.cost;mH+=c.hours});
+    const npm=mR>0?(mR-mC)/mR:0;
+    const bh=Math.max(4,Math.round(Math.abs(npm)*60));
+    nb+=`<div style="min-width:42px;display:flex;flex-direction:column;align-items:center;gap:3px">
+      <div style="font-size:10px;font-weight:700;color:${npmCol(npm)}">${fcp(npm)}</div>
+      <div style="width:100%;height:${bh}px;background:${npmBg(npm)};border-radius:3px 3px 0 0;border:1px solid ${npmCol(npm)}44"></div>
+      <div style="font-size:9px;color:var(--t3);font-weight:500;white-space:nowrap">${m.label} '${String(m.year).slice(2)}</div>
+    </div>`;
+  });
+  nb+=`</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">`;
+  FC_MONTHS.forEach(m=>{
+    let mR=0,mC=0,mH=0;
+    fcResources.forEach(r=>{const c=fcCalcMonth(r,m.key);mR+=c.revenue;mC+=c.cost;mH+=c.hours});
+    nb+=`<div style="font-size:11px;color:var(--t2);background:var(--s2);border-radius:6px;padding:4px 8px"><strong>${m.label} '${String(m.year).slice(2)}:</strong> £${fc2(mR)} rev · £${fc2(mC)} cost · ${fc1(mH)}h</div>`;
+  });
+  nb+=`</div>`;
+  el('fc-npm-bar').innerHTML=nb;
+
+  // show the month filter only for views that use it
+  const wmSelToggle=el('fc-week-month');
+  if(wmSelToggle) wmSelToggle.style.display = (view==='weekly'||view==='byproject') ? 'inline-block' : 'none';
+
+  if(view==='summary') buildFcSummary();
+  else if(view==='monthly') buildFcMonthly();
+  else if(view==='weekly') buildFcWeekly();
+  else if(view==='byproject') buildFcByProject();
+  else buildFcAnalysis();
+}
+
+// ── EFFORT MODEL (allocation % driven, split by project/site) ────────────
+// Single source of truth: r.weeklyAlloc[weekKey] = array of
+//   {projectId, site, pct} entries — one resource can split a week across
+//   multiple projects/sites (e.g. 30% Site 1 + 20% PAL in the same week).
+// A plain number is also tolerated for backward compatibility (legacy data,
+// migrated transparently into a single untagged entry — see fcWeekEntries).
+// Hours are ALWAYS derived: hours = (totalPct/100) * week's available hours.
+// Monthly allocation % is the weighted average of its weeks (weighted by each
+// week's available hours, so a short boundary week doesn't skew the average).
+// Editing a month's total % sets that same untagged % on every week within it
+// (clearing any project/site split for that month); use the Weekly view to
+// split effort across projects/sites — that's per-week by design.
+
+// Always returns an array of {projectId, site, pct} for a given week,
+// migrating legacy plain-number entries on the fly.
+function fcWeekEntries(r, weekKey){
+  const raw = r.weeklyAlloc && r.weeklyAlloc[weekKey];
+  if(raw===undefined || raw===null) return [];
+  if(typeof raw === 'number') return raw>0 ? [{projectId:'', site:'', pct:raw}] : [];
+  if(Array.isArray(raw)) return raw;
+  return [];
+}
+function fcWeekAlloc(r, weekKey){
+  return Math.round(fcWeekEntries(r,weekKey).reduce((s,e)=>s+(e.pct||0),0)*10)/10;
+}
+function fcWeeksInMonth(monthKey){
+  return FC_WEEKS.filter(w=>w.monthKey===monthKey);
+}
+function fcWeekHours(r, weekKey){
+  const w=FC_WEEKS.find(x=>x.key===weekKey); if(!w) return 0;
+  return Math.round((fcWeekAlloc(r,weekKey)/100)*w.hours*10)/10;
+}
+// Monthly allocation % — weighted average of the month's weeks (weighted by available hours)
+function fcMonthAlloc(r, monthKey){
+  const weeks=fcWeeksInMonth(monthKey);
+  const totalCapacity=weeks.reduce((s,w)=>s+w.hours,0);
+  if(totalCapacity===0) return 0;
+  const weighted=weeks.reduce((s,w)=>s+fcWeekAlloc(r,w.key)*w.hours,0);
+  return Math.round((weighted/totalCapacity)*10)/10;
+}
+// Monthly hours — ALWAYS the sum of that month's derived weekly hours
+function fcMonthHours(r, monthKey){
+  const weeks=fcWeeksInMonth(monthKey);
+  return Math.round(weeks.reduce((sum,w)=>sum+fcWeekHours(r,w.key),0)*10)/10;
+}
+function fcCalcWeek(r,week){
+  const alloc=fcWeekAlloc(r,week.key);
+  const hours=fcWeekHours(r,week.key);
+  const cost=Math.round(hours*r.costH*100)/100;
+  const revenue=Math.round(hours*r.billH*100)/100;
+  return{alloc,hours,cost,revenue};
+}
+function fcCalcMonth(r,monthKey){
+  const alloc=fcMonthAlloc(r,monthKey);
+  const hours=fcMonthHours(r,monthKey);
+  const cost=Math.round(hours*r.costH*100)/100;
+  const revenue=Math.round(hours*r.billH*100)/100;
+  return{alloc,hours,cost,revenue};
+}
+function fcTotals(r){
+  let h=0,c=0,rev=0;
+  FC_MONTHS.forEach(m=>{const x=fcCalcMonth(r,m.key);h+=x.hours;c+=x.cost;rev+=x.revenue});
+  return{totalHours:Math.round(h*10)/10,totalCost:Math.round(c*100)/100,totalRevenue:Math.round(rev*100)/100,npm:rev>0?(rev-c)/rev:0};
+}
+function fmtWeekRange(w){
+  const s=new Date(w.start+'T00:00'), e=new Date(w.end+'T00:00');
+  return s.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' – '+e.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+}
+function fc2(n){return Math.round(n).toLocaleString('en-GB')}
+function fc1(n){return (Math.round(n*10)/10).toLocaleString('en-GB')}
+function fcp(n){return(n*100).toFixed(1)+'%'}
+function npmCol(n){return n>=0.35?'#3B6D11':n>=0.2?'#0F6E56':n>=0?'#BA7517':'#E24B4A'}
+function npmBg(n){return n>=0.35?'#EAF3DE':n>=0.2?'#E1F5EE':n>=0?'#FAEEDA':'#FCEBEB'}
+function siteLabel(projectId, site){
+  const p=projects.find(x=>x.id===projectId);
+  if(!p) return site||'Unassigned';
+  return site ? `${p.name} / ${site}` : p.name;
+}
+
+// ── EDITING: replace a week's full entry list (array of {projectId,site,pct}) ──
+function setWeekEntries(resId, weekKey, entries){
+  const r = fcResources.find(x=>x.id===resId);
+  if(!r) return;
+  if(!r.weeklyAlloc) r.weeklyAlloc = {};
+  const cleaned = entries.filter(e=>e.pct>0);
+  if(!cleaned.length) delete r.weeklyAlloc[weekKey];
+  else r.weeklyAlloc[weekKey] = cleaned;
+  saveData();
+  buildForecast();
+}
+
+// ── EDITING: quick-set a week's TOTAL % with no project/site tag (clears any split) ──
+function setWeekAlloc(resId, weekKey, val){
+  const r = fcResources.find(x=>x.id===resId);
+  if(!r) return;
+  if(!r.weeklyAlloc) r.weeklyAlloc = {};
+  const num = parseFloat(val);
+  if(val===''||isNaN(num)||num<0){ delete r.weeklyAlloc[weekKey]; }
+  else { r.weeklyAlloc[weekKey] = [{projectId:'', site:'', pct:num}]; }
+  saveData();
+  buildForecast();
+}
+
+// ── EDITING: set a month's allocation % — applies that untagged % to every week in it ──
+// (this clears any project/site split for the month — use the Weekly view to split)
+function setMonthAlloc(resId, monthKey, val){
+  const r = fcResources.find(x=>x.id===resId);
+  if(!r) return;
+  if(!r.weeklyAlloc) r.weeklyAlloc = {};
+  const num = parseFloat(val);
+  const weeks = fcWeeksInMonth(monthKey);
+  if(!weeks.length) return;
+  if(val===''||isNaN(num)||num<0){
+    weeks.forEach(w=>delete r.weeklyAlloc[w.key]);
+  } else {
+    weeks.forEach(w=>{ r.weeklyAlloc[w.key] = [{projectId:'', site:'', pct:num}]; });
+  }
+  saveData();
+  buildForecast();
+}
+
+function clearResourceAlloc(resId){
+  const r = fcResources.find(x=>x.id===resId);
+  if(!r) return;
+  r.weeklyAlloc = {};
+  saveData();
+  buildForecast();
+}
+
+// ── WEEK ALLOCATION MODAL (per-project/site split editor) ─────────────────
+let fcWeekEditRid=null, fcWeekEditWkey=null, fcWeekRows=[];
+function openWeekAllocModal(resId, weekKey){
+  fcWeekEditRid=resId; fcWeekEditWkey=weekKey;
+  const r=fcResources.find(x=>x.id===resId);
+  const w=FC_WEEKS.find(x=>x.key===weekKey);
+  if(!r||!w) return;
+  el('fcwk-title').textContent=`${r.name} — ${w.fullLabel}`;
+  el('fcwk-sub').textContent=`${fmtWeekRange(w)} · ${w.hours}h available this week`;
+  fcWeekRows = fcWeekEntries(r,weekKey).map(e=>({...e}));
+  if(!fcWeekRows.length) fcWeekRows=[{projectId:'',site:'',pct:0}];
+  renderFcWeekRows();
+  el('modal-fcweek').classList.add('open');
+}
+function renderFcWeekRows(){
+  el('fcwk-rows').innerHTML = fcWeekRows.map((e,i)=>{
+    const p=projects.find(x=>x.id===e.projectId);
+    const sites=p?.sites||[];
+    return `<div class="dyn-row">
+      <select class="dyn-select" style="flex:1.4" onchange="fcWeekRows[${i}].projectId=this.value;fcWeekRows[${i}].site='';renderFcWeekRows()">
+        <option value="">No project (general)</option>
+        ${projects.map(pr=>`<option value="${pr.id}"${pr.id===e.projectId?' selected':''}>${pr.name}</option>`).join('')}
+      </select>
+      <select class="dyn-select" style="flex:1" onchange="fcWeekRows[${i}].site=this.value">
+        <option value="">No site</option>
+        ${sites.map(s=>`<option value="${s}"${s===e.site?' selected':''}>${s}</option>`).join('')}
+      </select>
+      <input type="number" min="0" max="200" step="5" value="${e.pct||0}" class="dyn-input" style="flex:0 0 64px;text-align:right" onchange="fcWeekRows[${i}].pct=parseFloat(this.value)||0;updateFcWeekTotal()">
+      <span style="font-size:11px;color:var(--t3);width:14px">%</span>
+      <button class="btn-icon" onclick="fcWeekRows.splice(${i},1);renderFcWeekRows();updateFcWeekTotal()">✕</button>
+    </div>`;
+  }).join('');
+  updateFcWeekTotal();
+}
+function addFcWeekRow(){ fcWeekRows.push({projectId:'',site:'',pct:0}); renderFcWeekRows() }
+function updateFcWeekTotal(){
+  const total=fcWeekRows.reduce((s,e)=>s+(parseFloat(e.pct)||0),0);
+  const w=FC_WEEKS.find(x=>x.key===fcWeekEditWkey);
+  const hrs = w ? Math.round((total/100)*w.hours*10)/10 : 0;
+  const lbl=el('fcwk-total');
+  if(lbl) lbl.innerHTML = `Total: <strong style="color:${total>100?'var(--red)':'var(--teal)'}">${Math.round(total*10)/10}%</strong> = ${hrs}h${total>100?' <span style="color:var(--red)">(over 100%)</span>':''}`;
+}
+function saveFcWeekAlloc(){
+  if(!fcWeekEditRid||!fcWeekEditWkey) return;
+  setWeekEntries(fcWeekEditRid, fcWeekEditWkey, fcWeekRows);
+  closeModal('fcweek');
+}
+
+function buildFcSummary(){
+  let h=`<div class="fc-scroll"><table class="fc-table"><thead><tr>
+    <th class="left" style="min-width:155px">Resource</th>
+    <th class="left">Team</th><th class="left">Region</th>
+    <th class="left" style="min-width:140px">Role</th>
+    <th>Bill/Hr</th><th>Cost/Hr</th><th>Days</th><th>Hours</th>
+    <th>Cost £</th><th>Revenue £</th><th>Margin £</th><th>NPM</th><th></th>
+  </tr></thead><tbody>`;
+  fcResources.forEach(r=>{
+    const t=fcTotals(r),mg=t.totalRevenue-t.totalCost;
+    h+=`<tr>
+      <td class="left" style="font-weight:500">${r.name}</td>
+      <td class="left"><span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--s2)">${r.team}</span></td>
+      <td class="left"><span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--tl);color:var(--teal)">${r.region}</span></td>
+      <td class="left" style="color:var(--t2);font-size:11px">${r.role}</td>
+      <td>£${r.billH}</td><td>£${r.costH}</td>
+      <td style="font-weight:500">${(t.totalHours/8).toFixed(1)}</td>
+      <td style="font-weight:500">${fc1(t.totalHours)}</td>
+      <td style="color:#993C1D">£${fc2(t.totalCost)}</td>
+      <td style="color:var(--teal)">£${fc2(t.totalRevenue)}</td>
+      <td style="color:${mg>=0?'var(--green)':'var(--red)'};font-weight:600">£${fc2(mg)}</td>
+      <td><span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:${npmBg(t.npm)};color:${npmCol(t.npm)}">${fcp(t.npm)}</span></td>
+      <td><button class="fc-edit-btn" onclick="openForecastModal('${r.id}')">✎</button><button class="fc-edit-btn" onclick="delFcRes('${r.id}')">🗑</button></td>
+    </tr>`;
+  });
+  let tR=0,tC=0,tH=0;
+  fcResources.forEach(r=>{const t=fcTotals(r);tR+=t.totalRevenue;tC+=t.totalCost;tH+=t.totalHours});
+  const tN=tR>0?(tR-tC)/tR:0;
+  h+=`<tr class="total-row">
+    <td class="left" colspan="6">TOTAL (${fcResources.length} resources)</td>
+    <td>${(tH/8).toFixed(1)}</td><td>${fc1(tH)}</td>
+    <td style="color:#993C1D">£${fc2(tC)}</td><td style="color:var(--teal)">£${fc2(tR)}</td>
+    <td style="color:${tR>tC?'var(--green)':'var(--red)'}">£${fc2(tR-tC)}</td>
+    <td><span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:${npmBg(tN)};color:${npmCol(tN)}">${fcp(tN)}</span></td>
+    <td></td>
+  </tr></tbody></table></div>`;
+  el('fc-main').innerHTML=h;
+}
+
+function buildFcMonthly(){
+  let h=`<div style="padding:10px 16px;background:var(--tl);border-bottom:1px solid var(--b1);font-size:11px;color:var(--teal);display:flex;align-items:center;gap:8px">
+    <span>✎</span><span>Enter <strong>Alloc%</strong> per month — hours are calculated automatically from the resource's allocation × that month's available hours. Setting a month's % applies it to every week within it; edit the Weekly view for finer control.</span>
+  </div>`;
+  h+=`<div class="fc-scroll"><table class="fc-table"><thead>
+  <tr>
+    <th class="left" rowspan="2" style="min-width:140px">Resource</th>
+    <th class="left" rowspan="2">Rgn</th>
+    <th class="left" rowspan="2">£/Hr</th>
+    ${FC_MONTHS.map(m=>`<th class="month-hdr" colspan="4">${m.label} '${String(m.year).slice(2)}<br><span style="font-weight:400;font-size:9px">${m.hours}h avail</span></th>`).join('')}
+    <th colspan="3" style="background:#1A1917;color:#fff;text-align:center">Total</th>
+  </tr>
+  <tr>
+    ${FC_MONTHS.map(()=>`<th>Alloc%</th><th>Hrs</th><th>Cost</th><th>Rev</th>`).join('')}
+    <th>Hrs</th><th>Cost £</th><th>Rev £</th>
+  </tr></thead><tbody>`;
+  fcResources.forEach(r=>{
+    const tot=fcTotals(r);
+    h+=`<tr>
+      <td class="left" style="font-weight:500;font-size:11px">${r.name}</td>
+      <td class="left"><span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span></td>
+      <td>£${r.billH}</td>
+      ${FC_MONTHS.map(m=>{
+        const c=fcCalcMonth(r,m.key);
+        const col=c.alloc===0?'var(--t3)':c.alloc>=100?'var(--green)':c.alloc>=75?'var(--tm)':'var(--amber)';
+        return `<td style="padding:3px 4px">
+                  <input type="number" min="0" max="200" step="5"
+                    value="${c.alloc||0}"
+                    onchange="setMonthAlloc('${r.id}','${m.key}',this.value)"
+                    style="width:46px;padding:3px 4px;text-align:right;border:1px solid var(--b2);border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);color:${col};font-weight:${c.alloc>0?'600':'400'}">
+                </td>
+                <td style="color:${col}">${c.hours||'-'}</td>
+                <td style="color:#993C1D">${c.cost?'£'+fc2(c.cost):'-'}</td>
+                <td style="color:var(--teal)">${c.revenue?'£'+fc2(c.revenue):'-'}</td>`;
+      }).join('')}
+      <td style="font-weight:600">${fc1(tot.totalHours)}</td>
+      <td style="color:#993C1D">£${fc2(tot.totalCost)}</td>
+      <td style="color:var(--teal)">£${fc2(tot.totalRevenue)}</td>
+    </tr>`;
+  });
+  h+=`<tr class="total-row"><td class="left" colspan="3">Monthly totals</td>`;
+  let gH=0,gC=0,gR=0;
+  FC_MONTHS.forEach(m=>{
+    let mH=0,mC=0,mR=0;
+    fcResources.forEach(r=>{const c=fcCalcMonth(r,m.key);mH+=c.hours;mC+=c.cost;mR+=c.revenue});
+    gH+=mH;gC+=mC;gR+=mR;
+    h+=`<td style="text-align:center;font-size:11px">—</td><td style="text-align:center;font-size:11px">${fc1(mH)}h</td><td style="color:#993C1D">£${fc2(mC)}</td><td style="color:var(--teal)">£${fc2(mR)}</td>`;
+  });
+  h+=`<td>${fc1(gH)}</td><td style="color:#993C1D">£${fc2(gC)}</td><td style="color:var(--teal)">£${fc2(gR)}</td></tr></tbody></table></div>`;
+  el('fc-main').innerHTML=h;
+}
+
+function buildFcWeekly(){
+  const monthFilter=el('fc-week-month')?.value||'all';
+  const weeks = monthFilter==='all' ? FC_WEEKS : FC_WEEKS.filter(w=>w.monthKey===monthFilter);
+  const wmSel=el('fc-week-month');
+  if(wmSel && wmSel.options.length<=1){
+    wmSel.innerHTML='<option value="all">All months</option>'+FC_MONTHS.map(m=>`<option value="${m.key}">${m.label} '${String(m.year).slice(2)} only</option>`).join('');
+  }
+  if(!weeks.length){ el('fc-main').innerHTML='<div class="empty" style="padding:40px">No weeks to show — try widening your forecast period.</div>'; return }
+
+  let h=`<div style="padding:10px 16px;background:var(--tl);border-bottom:1px solid var(--b1);font-size:11px;color:var(--teal);display:flex;align-items:center;gap:8px">
+    <span>✎</span><span>Click any <strong>Alloc%</strong> cell to enter the week's effort — split across multiple projects/sites if needed. Cells with a split show a small chip count.</span>
+  </div>`;
+  h+=`<div class="fc-scroll"><table class="fc-table"><thead>
+  <tr>
+    <th class="left" rowspan="2" style="min-width:140px">Resource</th>
+    <th class="left" rowspan="2">Rgn</th>
+    <th class="left" rowspan="2">£/Hr</th>
+    ${weeks.map(w=>`<th class="month-hdr" colspan="4" title="${fmtWeekRange(w)}">${w.fullLabel}<br><span style="font-weight:400;font-size:9px">${w.hours}h avail</span></th>`).join('')}
+    <th colspan="3" style="background:#1A1917;color:#fff;text-align:center">Period total</th>
+  </tr>
+  <tr>
+    ${weeks.map(()=>`<th>Alloc%</th><th>Hrs</th><th>Cost</th><th>Rev</th>`).join('')}
+    <th>Hrs</th><th>Cost £</th><th>Rev £</th>
+  </tr></thead><tbody>`;
+
+  fcResources.forEach(r=>{
+    let pH=0,pC=0,pR=0;
+    h+=`<tr>
+      <td class="left" style="font-weight:500;font-size:11px">${r.name}</td>
+      <td class="left"><span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span></td>
+      <td>£${r.billH}</td>
+      ${weeks.map(w=>{
+        const c=fcCalcWeek(r,w);
+        pH+=c.hours; pC+=c.cost; pR+=c.revenue;
+        const col=c.alloc===0?'var(--t3)':c.alloc>=100?'var(--green)':c.alloc>=75?'var(--tm)':'var(--amber)';
+        const entries=fcWeekEntries(r,w.key);
+        const splitCount=entries.filter(e=>e.projectId).length;
+        const leaveStatus = fcWeekLeaveStatus(r, w);
+        const leaveBg = leaveStatus==='holiday'?'var(--rl)':leaveStatus==='personal'?'#FEF3C7':leaveStatus==='both'?'var(--rl)':'';
+        const leaveBorder = leaveStatus==='holiday'?'var(--red)':leaveStatus==='personal'?'var(--amber)':leaveStatus==='both'?'var(--red)':'var(--b2)';
+        const leaveIcon = leaveStatus==='holiday'?'🏖':leaveStatus==='personal'?'⚠':leaveStatus==='both'?'🏖':'';
+        const leaveTitle = leaveStatus==='holiday'?ukHolidaysInWeek(w).map(h=>h.name).join(', '):leaveStatus==='personal'?'Personal leave overlaps this week':leaveStatus==='both'?'Public holiday + personal leave':'';
+        return `<td style="padding:3px 4px;position:relative;cursor:pointer${leaveBg?';background:'+leaveBg:''}" onclick="openWeekAllocModal('${r.id}','${w.key}')" title="${leaveTitle||('Click to edit allocation'+(splitCount?' ('+splitCount+' project'+(splitCount!==1?'s':'')+')':''))}">
+                  <div style="width:44px;padding:3px 4px;text-align:right;border:1px solid ${leaveBorder};border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);color:${col};font-weight:${c.alloc>0?'600':'400'};position:relative">${c.alloc||0}%${leaveIcon?`<span style="position:absolute;top:-4px;right:-4px;font-size:9px">${leaveIcon}</span>`:''}
+                  </div>
+                  ${splitCount>1?`<span style="position:absolute;top:1px;right:1px;background:var(--purple);color:#fff;font-size:8px;font-weight:700;border-radius:8px;padding:0 4px;line-height:1.4">${splitCount}</span>`:''}
+                </td>
+                <td style="color:${col}">${c.hours||'-'}</td>
+                <td style="color:#993C1D">${c.cost?'£'+fc2(c.cost):'-'}</td>
+                <td style="color:var(--teal)">${c.revenue?'£'+fc2(c.revenue):'-'}</td>`;
+      }).join('')}
+      <td style="font-weight:600">${fc1(pH)}</td>
+      <td style="color:#993C1D">£${fc2(pC)}</td>
+      <td style="color:var(--teal)">£${fc2(pR)}</td>
+    </tr>`;
+  });
+
+  h+=`<tr class="total-row"><td class="left" colspan="3">Weekly totals</td>`;
+  let gH=0,gC=0,gR=0;
+  weeks.forEach(w=>{
+    let wH=0,wC=0,wR=0;
+    fcResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours;wC+=c.cost;wR+=c.revenue});
+    gH+=wH;gC+=wC;gR+=wR;
+    h+=`<td style="font-size:11px;text-align:center">—</td><td style="font-size:11px">${fc1(wH)}h</td><td style="color:#993C1D;font-size:11px">£${fc2(wC)}</td><td style="color:var(--teal);font-size:11px">£${fc2(wR)}</td>`;
+  });
+  h+=`<td>${fc1(gH)}</td><td style="color:#993C1D">£${fc2(gC)}</td><td style="color:var(--teal)">£${fc2(gR)}</td></tr></tbody></table></div>`;
+
+  h+=`<div style="padding:16px 18px;border-top:1px solid var(--b1)">
+    <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:10px">Weekly net profit margin</div>
+    <div style="display:flex;gap:4px;align-items:flex-end;height:60px;overflow-x:auto">`;
+  weeks.forEach(w=>{
+    let wH=0,wC=0,wR=0;
+    fcResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours;wC+=c.cost;wR+=c.revenue});
+    const npm=wR>0?(wR-wC)/wR:0;
+    const bh=Math.max(3,Math.round(Math.abs(npm)*50));
+    h+=`<div style="min-width:38px;display:flex;flex-direction:column;align-items:center;gap:2px" title="${w.fullLabel} (${fmtWeekRange(w)}): ${fcp(npm)} NPM, £${fc2(wR-wC)} margin">
+      <div style="font-size:9px;font-weight:700;color:${npmCol(npm)}">${(npm*100).toFixed(0)}%</div>
+      <div style="width:100%;height:${bh}px;background:${npmBg(npm)};border-radius:3px 3px 0 0;border:1px solid ${npmCol(npm)}44"></div>
+      <div style="font-size:8px;color:var(--t3);white-space:nowrap">${w.monthLabel} ${w.label}</div>
+    </div>`;
+  });
+  h+=`</div></div>`;
+
+  el('fc-main').innerHTML=h;
+}
+
+function buildFcByProject(){
+  const monthFilter=el('fc-week-month')?.value||'all';
+  const weeks = monthFilter==='all' ? FC_WEEKS : FC_WEEKS.filter(w=>w.monthKey===monthFilter);
+  const wmSel=el('fc-week-month');
+  if(wmSel && wmSel.options.length<=1){
+    wmSel.innerHTML='<option value="all">All months</option>'+FC_MONTHS.map(m=>`<option value="${m.key}">${m.label} '${String(m.year).slice(2)} only</option>`).join('');
+  }
+  // Build rollup: key = "projectId|site" -> {hours,cost,revenue,resources:Set}
+  const rollup = {};
+  fcResources.forEach(r=>{
+    weeks.forEach(w=>{
+      fcWeekEntries(r,w.key).forEach(e=>{
+        if(!e.pct) return;
+        const key = (e.projectId||'')+'|'+(e.site||'');
+        if(!rollup[key]) rollup[key]={projectId:e.projectId,site:e.site,hours:0,cost:0,revenue:0,resources:new Set()};
+        const hrs = Math.round((e.pct/100)*w.hours*10)/10;
+        rollup[key].hours += hrs;
+        rollup[key].cost += hrs*r.costH;
+        rollup[key].revenue += hrs*r.billH;
+        rollup[key].resources.add(r.name);
+      });
+    });
+  });
+  const rows = Object.values(rollup).sort((a,b)=>b.revenue-a.revenue);
+  if(!rows.length){
+    el('fc-main').innerHTML='<div class="empty" style="padding:48px">No project/site allocations entered yet. Click any cell in the Weekly view to assign effort to a project or site.</div>';
+    return;
+  }
+  let h=`<div style="padding:10px 16px;background:var(--tl);border-bottom:1px solid var(--b1);font-size:11px;color:var(--teal)">
+    Rolled up from weekly allocations tagged with a project/site${monthFilter!=='all'?' for the selected month':''}. Entries with no project tag appear as "Unassigned".
+  </div>`;
+  h+=`<div class="fc-scroll"><table class="fc-table"><thead><tr>
+    <th class="left" style="min-width:200px">Project / Site</th>
+    <th class="left">Resources</th>
+    <th>Hours</th><th>Cost £</th><th>Revenue £</th><th>Margin £</th><th>NPM</th>
+  </tr></thead><tbody>`;
+  let tH=0,tC=0,tR=0;
+  rows.forEach(row=>{
+    const mg=row.revenue-row.cost;
+    const npm=row.revenue>0?(row.revenue-row.cost)/row.revenue:0;
+    tH+=row.hours; tC+=row.cost; tR+=row.revenue;
+    h+=`<tr>
+      <td class="left" style="font-weight:500">${row.projectId?siteLabel(row.projectId,row.site):'<span style="color:var(--t3)">Unassigned</span>'}</td>
+      <td class="left" style="font-size:11px;color:var(--t2)">${[...row.resources].join(', ')}</td>
+      <td>${fc1(row.hours)}</td>
+      <td style="color:#993C1D">£${fc2(row.cost)}</td>
+      <td style="color:var(--teal)">£${fc2(row.revenue)}</td>
+      <td style="color:${mg>=0?'var(--green)':'var(--red)'};font-weight:600">£${fc2(mg)}</td>
+      <td><span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:${npmBg(npm)};color:${npmCol(npm)}">${fcp(npm)}</span></td>
+    </tr>`;
+  });
+  const tN=tR>0?(tR-tC)/tR:0;
+  h+=`<tr class="total-row">
+    <td class="left" colspan="2">TOTAL (${rows.length} project/site${rows.length!==1?'s':''})</td>
+    <td>${fc1(tH)}</td><td style="color:#993C1D">£${fc2(tC)}</td><td style="color:var(--teal)">£${fc2(tR)}</td>
+    <td style="color:${tR>tC?'var(--green)':'var(--red)'}">£${fc2(tR-tC)}</td>
+    <td><span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:${npmBg(tN)};color:${npmCol(tN)}">${fcp(tN)}</span></td>
+  </tr></tbody></table></div>`;
+  el('fc-main').innerHTML=h;
+}
+
+function buildFcAnalysis(){
+  const sorted=[...fcResources].sort((a,b)=>fcTotals(b).npm-fcTotals(a).npm);
+  let h=`<div style="padding:18px">
+  <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Resource margin analysis — sorted by NPM</div>
+  <div style="display:flex;flex-direction:column;gap:8px">`;
+  sorted.forEach(r=>{
+    const t=fcTotals(r),mg=t.totalRevenue-t.totalCost;
+    h+=`<div style="background:var(--s2);border-radius:var(--r);padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:600;min-width:160px">${r.name}</div>
+        <span style="font-size:10px;padding:1px 6px;border-radius:10px;background:var(--s3);color:var(--t2)">${r.role}</span>
+        <span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:${npmBg(t.npm)};color:${npmCol(t.npm)}">NPM ${fcp(t.npm)}</span>
+        <span style="font-size:12px;color:${mg>=0?'var(--green)':'var(--red)'};font-weight:600">£${fc2(mg)} margin</span>
+        <span style="font-size:11px;color:var(--t2);margin-left:auto">£${fc2(t.totalCost)} cost · £${fc2(t.totalRevenue)} rev · ${fc1(t.totalHours)}h</span>
+        <button class="fc-edit-btn" onclick="openForecastModal('${r.id}')">✎</button>
+      </div>
+      <div style="display:flex;gap:2px;height:22px;border-radius:4px;overflow:hidden">
+        ${FC_MONTHS.map(m=>{
+          const c=fcCalcMonth(r,m.key);
+          const pct=c.alloc||0;
+          const col=pct===0?'var(--b1)':pct>=100?'#1D9E75':pct>=75?'#185FA5':'#BA7517';
+          return `<div style="flex:1;background:${col};opacity:${pct===0?'0.25':'0.85'};display:flex;align-items:center;justify-content:center" title="${m.label} '${String(m.year).slice(2)}: ${pct}% alloc · ${c.hours}h · £${fc2(c.revenue)} rev">
+            <span style="font-size:9px;color:#fff;font-weight:700;${pct===0?'opacity:0':''}">${pct?pct+'%':''}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div style="display:flex;gap:2px;margin-top:3px">
+        ${FC_MONTHS.map(m=>`<div style="flex:1;text-align:center;font-size:9px;color:var(--t3)">${m.label}</div>`).join('')}
+      </div>
+    </div>`;
+  });
+  h+=`</div>
+  <div style="margin-top:20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Cost & revenue by region</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">`;
+  const regions=[...new Set(fcResources.map(r=>r.region))];
+  regions.forEach(reg=>{
+    const rR=fcResources.filter(r=>r.region===reg);
+    let rC=0,rRev=0,rH=0;
+    rR.forEach(r=>{const t=fcTotals(r);rC+=t.totalCost;rRev+=t.totalRevenue;rH+=t.totalHours});
+    const rN=rRev>0?(rRev-rC)/rRev:0;
+    h+=`<div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--r);padding:12px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:6px">${reg} <span style="font-size:11px;font-weight:400;color:var(--t3)">(${rR.length})</span></div>
+      <div style="font-size:11px;margin-bottom:3px">Cost: <strong style="color:#993C1D">£${fc2(rC)}</strong></div>
+      <div style="font-size:11px;margin-bottom:3px">Revenue: <strong style="color:var(--teal)">£${fc2(rRev)}</strong></div>
+      <div style="font-size:11px;margin-bottom:6px">Hours: <strong>${fc1(rH)}</strong></div>
+      <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-weight:700;background:${npmBg(rN)};color:${npmCol(rN)}">NPM ${fcp(rN)}</span>
+    </div>`;
+  });
+  h+=`</div></div>`;
+  el('fc-main').innerHTML=h;
+}
+
+function openForecastModal(editId){
+  editingFcId=editId||null;
+  const r=editId?fcResources.find(x=>x.id===editId):null;
+  el('fc-modal-title').textContent=r?'Edit resource':'Add resource to forecast';
+  el('fc-res-sel').innerHTML='<option value="">-- Select from team --</option>'+
+    teams.map(t=>`<option value="${t.id}"${r&&t.name===r.name?' selected':''}>${t.name} — ${t.role}</option>`).join('');
+  el('fc-name').value=r?.name||'';
+  el('fc-team').value=r?.team||'';
+  el('fc-role').value=r?.role||'';
+  el('fc-region').value=r?.region||'UK';
+  el('fc-bill-d').value=r?.billD||'';
+  el('fc-bill-h').value=r?.billH||'';
+  el('fc-cost-h').value=r?.costH||'';
+  // dynamically build the monthly ALLOCATION % inputs based on the current FC_MONTHS
+  const allocWrap=el('fc-alloc-grid');
+  if(allocWrap){
+    allocWrap.innerHTML = FC_MONTHS.map(m=>{
+      const pct = r ? fcMonthAlloc(r, m.key) : 0;
+      const hrs = r ? fcMonthHours(r, m.key) : 0;
+      return `<div class="field"><label>${m.label} '${String(m.year).slice(2)} <span style="color:var(--t3);font-weight:400">(${m.hours}h avail)</span></label>
+        <input id="fc-alloc-${m.key}" type="number" min="0" max="200" step="5" placeholder="0" value="${pct}">
+        <div style="font-size:10px;color:var(--t3);margin-top:2px">${hrs}h</div>
+      </div>`;
+    }).join('');
+  }
+  el('modal-forecast').classList.add('open');
+}
+function fillFromTeam(){
+  const tid=el('fc-res-sel').value; if(!tid)return;
+  const t=teams.find(x=>x.id===tid); if(!t)return;
+  el('fc-name').value=t.name;
+  el('fc-role').value=t.role;
+  el('fc-bill-h').value=t.billRate||'';
+  el('fc-cost-h').value=t.costRate||'';
+}
+function saveForecastResource(){
+  const name=el('fc-name').value.trim(); if(!name){alert('Please enter a resource name.');return}
+  const data={name,team:el('fc-team').value.trim(),role:el('fc-role').value.trim(),
+    region:el('fc-region').value,billD:parseFloat(el('fc-bill-d').value)||0,
+    billH:parseFloat(el('fc-bill-h').value)||0,costH:parseFloat(el('fc-cost-h').value)||0};
+  let target;
+  if(editingFcId){
+    target=fcResources.find(x=>x.id===editingFcId);
+    Object.assign(target,data);
+    if(!target.weeklyAlloc) target.weeklyAlloc={};
+  } else {
+    target={id:uid(),...data,weeklyAlloc:{},fcLeaves:[]};
+    fcResources.push(target);
+  }
+  // Apply monthly allocation % entered in the modal — applies that % to every week in the month
+  FC_MONTHS.forEach(m=>{
+    const val=el('fc-alloc-'+m.key)?.value;
+    if(val!==undefined && val!=='') setMonthAllocOnResource(target, m.key, parseFloat(val)||0);
+  });
+  closeModal('forecast'); buildForecast(); saveData();
+}
+// internal helper used by saveForecastResource and seedForecast (same logic as setMonthAlloc but
+// operates on a resource object directly, without re-rendering on every call)
+function setMonthAllocOnResource(r, monthKey, num){
+  if(!r.weeklyAlloc) r.weeklyAlloc={};
+  const weeks=fcWeeksInMonth(monthKey);
+  if(!weeks.length) return;
+  if(isNaN(num)||num<0){ weeks.forEach(w=>delete r.weeklyAlloc[w.key]); return }
+  weeks.forEach(w=>{ r.weeklyAlloc[w.key]=num; });
+}
+function delFcRes(id){
+  fcResources=fcResources.filter(x=>x.id!==id); buildForecast(); saveData();
+}
+
+
+function manualSyncForecast(){
+  const added = syncForecastToTeam();
+  buildTeam(); saveData();
+  const b = document.getElementById('banner-import');
+  b.style.cssText = added>0 ? 'display:flex;background:#F0FDF4;border-bottom-color:#86EFAC' : 'display:flex;background:var(--s2);border-bottom-color:var(--b1)';
+  const m = document.getElementById('banner-import-msg');
+  if(m){ m.style.color = added>0 ? '#166534' : 'var(--t2)'; m.textContent = added>0 ? `✓ Added ${added} new team member${added!==1?'s':''} from the Forecast tracker.` : 'All forecast resources are already in your team.'; }
+  setTimeout(()=>b.style.display='none', 4000);
+}
+
+
+// ── UK PUBLIC HOLIDAYS 2025-2027 ─────────────────────────────────────────
+const UK_HOLIDAYS = [
+  // 2025
+  {date:'2025-01-01',name:"New Year's Day"},
+  {date:'2025-04-18',name:"Good Friday"},
+  {date:'2025-04-21',name:"Easter Monday"},
+  {date:'2025-05-05',name:"Early May Bank Holiday"},
+  {date:'2025-05-26',name:"Spring Bank Holiday"},
+  {date:'2025-08-25',name:"Summer Bank Holiday"},
+  {date:'2025-12-25',name:"Christmas Day"},
+  {date:'2025-12-26',name:"Boxing Day"},
+  // 2026
+  {date:'2026-01-01',name:"New Year's Day"},
+  {date:'2026-04-03',name:"Good Friday"},
+  {date:'2026-04-06',name:"Easter Monday"},
+  {date:'2026-05-04',name:"Early May Bank Holiday"},
+  {date:'2026-05-25',name:"Spring Bank Holiday"},
+  {date:'2026-08-31',name:"Summer Bank Holiday"},
+  {date:'2026-12-25',name:"Christmas Day"},
+  {date:'2026-12-28',name:"Boxing Day (substitute)"},
+  // 2027
+  {date:'2027-01-01',name:"New Year's Day"},
+  {date:'2027-03-26',name:"Good Friday"},
+  {date:'2027-03-29',name:"Easter Monday"},
+  {date:'2027-05-03',name:"Early May Bank Holiday"},
+  {date:'2027-05-31',name:"Spring Bank Holiday"},
+  {date:'2027-08-30',name:"Summer Bank Holiday"},
+  {date:'2027-12-27',name:"Christmas Day (substitute)"},
+  {date:'2027-12-28',name:"Boxing Day (substitute)"},
+  // 2028
+  {date:'2028-01-03',name:"New Year's Day (substitute)"},
+  {date:'2028-04-14',name:"Good Friday"},
+  {date:'2028-04-17',name:"Easter Monday"},
+  {date:'2028-05-01',name:"Early May Bank Holiday"},
+  {date:'2028-05-29',name:"Spring Bank Holiday"},
+  {date:'2028-08-28',name:"Summer Bank Holiday"},
+  {date:'2028-12-25',name:"Christmas Day"},
+  {date:'2028-12-26',name:"Boxing Day"},
+];
+
+// Returns all UK holidays that fall within a date range (YYYY-MM-DD strings)
+function ukHolidaysInRange(start, end){
+  const s=new Date(start+'T00:00'), e=new Date(end+'T00:00');
+  return UK_HOLIDAYS.filter(h=>{ const d=new Date(h.date+'T00:00'); return d>=s&&d<=e; });
+}
+// Returns all UK holidays that fall within a given week object
+function ukHolidaysInWeek(week){
+  return ukHolidaysInRange(week.start, week.end);
+}
+// Returns true if a given date string falls on a UK public holiday
+function isUkHoliday(dateStr){
+  return UK_HOLIDAYS.some(h=>h.date===dateStr);
+}
+
+// ── LEAVE DATA MODEL ──────────────────────────────────────────────────────
+// Each fcResource gets: r.fcLeaves = [{id, start, end, reason, type}]
+// type: 'annual' | 'sick' | 'other'
+// Public holidays are system-level (UK_HOLIDAYS), not stored per resource.
+
+function fcLeaveInRange(r, startStr, endStr){
+  if(!r.fcLeaves) return [];
+  const s=new Date(startStr+'T00:00'), e=new Date(endStr+'T00:00');
+  return r.fcLeaves.filter(l=>{
+    if(!l.start||!l.end) return false;
+    const ls=new Date(l.start+'T00:00'), le=new Date(l.end+'T00:00');
+    return ls<=e && le>=s;
+  });
+}
+
+// Does a resource have any personal leave overlapping this week?
+function fcLeaveInWeek(r, week){
+  return fcLeaveInRange(r, week.start, week.end);
+}
+
+// Does this week contain a UK public holiday?
+function weekHasUkHoliday(week){
+  return ukHolidaysInWeek(week).length>0;
+}
+
+// Does a resource have any leave or holiday overlap this week?
+function fcWeekLeaveStatus(r, week){
+  const holidays = ukHolidaysInWeek(week);
+  const personalLeave = fcLeaveInWeek(r, week);
+  if(holidays.length>0 && personalLeave.length>0) return 'both';
+  if(holidays.length>0) return 'holiday';
+  if(personalLeave.length>0) return 'personal';
+  return 'clear';
+}
+
+// ── LEAVE PLAN MODAL ──────────────────────────────────────────────────────
+let editingLeaveResId = null;
+let leaveRows = [];
+
+function openLeavePlanModal(resId){
+  editingLeaveResId = resId;
+  const r = fcResources.find(x=>x.id===resId);
+  if(!r) return;
+  el('lp-res-name').textContent = r.name;
+  leaveRows = r.fcLeaves ? JSON.parse(JSON.stringify(r.fcLeaves)) : [];
+  // Show UK holidays in the forecast period
+  const holPanel = el('lp-uk-holidays');
+  if(holPanel){
+    const startStr = fcPeriodStart ? fcPeriodStart+'-01' : '2025-01-01';
+    const [ey,em] = fcPeriodEnd ? fcPeriodEnd.split('-').map(Number) : [2027,12];
+    const endStr = new Date(ey, em, 0).toISOString().slice(0,10);
+    const upcoming = UK_HOLIDAYS.filter(h=>h.date>=startStr&&h.date<=endStr);
+    holPanel.innerHTML = upcoming.length
+      ? upcoming.map(h=>`<span style="background:var(--sf);border:1px solid var(--red);border-radius:4px;padding:2px 7px;font-size:10px;color:var(--coral);white-space:nowrap">${h.date} — ${h.name}</span>`).join('')
+      : '<span style="color:var(--t3)">None in the current forecast period</span>';
+  }
+  renderLeaveRows();
+  el('modal-leaveplan').classList.add('open');
+}
+
+function renderLeaveRows(){
+  const TYPE_LABELS = {annual:'Annual leave', sick:'Sick leave', other:'Other'};
+  el('lp-rows').innerHTML = leaveRows.length ? leaveRows.map((l,i)=>`
+    <div class="dyn-row" style="align-items:center;flex-wrap:wrap;gap:6px">
+      <select class="dyn-select" style="flex:1;min-width:100px" onchange="leaveRows[${i}].type=this.value">
+        ${['annual','sick','other'].map(t=>`<option value="${t}"${l.type===t?' selected':''}>${TYPE_LABELS[t]}</option>`).join('')}
+      </select>
+      <input type="date" value="${l.start||''}" class="dyn-input" style="flex:1;min-width:110px" onchange="leaveRows[${i}].start=this.value">
+      <span style="color:var(--t3);font-size:11px">to</span>
+      <input type="date" value="${l.end||''}"   class="dyn-input" style="flex:1;min-width:110px" onchange="leaveRows[${i}].end=this.value">
+      <input value="${l.reason||''}" placeholder="Notes (optional)" class="dyn-input" style="flex:1.5;min-width:120px" onchange="leaveRows[${i}].reason=this.value">
+      <button class="btn-icon" onclick="leaveRows.splice(${i},1);renderLeaveRows()">✕</button>
+    </div>`).join('') : `<div style="color:var(--t3);font-size:12px;padding:8px 0">No custom leave added yet.</div>`;
+}
+
+function addLeaveRow(){
+  leaveRows.push({id:uid(), type:'annual', start:'', end:'', reason:''});
+  renderLeaveRows();
+}
+
+function saveLeavePlan(){
+  const r = fcResources.find(x=>x.id===editingLeaveResId);
+  if(!r) return;
+  r.fcLeaves = leaveRows.filter(l=>l.start&&l.end).map(l=>({...l, id:l.id||uid()}));
+  saveData();
+  closeModal('leaveplan');
+  buildLeaveCalendar();
+  buildForecast();
+  buildGantt();
+}
+
+// ── LEAVE CALENDAR VIEW ───────────────────────────────────────────────────
+let leaveView = 'all'; // 'all' | 'holidays' | 'personal'
+
+function setLeaveView(v){
+  leaveView = v;
+  ['all','holidays','personal'].forEach(x=>{
+    el('lv-'+x)?.classList.toggle('active', x===v);
+  });
+  buildLeaveCalendar();
+}
+
+function buildLeaveCalendar(){
+  const cont = el('leave-body');
+  if(!cont) return;
+
+  if(!FC_WEEKS.length){ cont.innerHTML='<div class="empty" style="padding:48px">Set a forecast period first (Forecast tab → 📅 button).</div>'; return }
+
+  const yearFilter = el('leave-year-filter')?.value||'';
+  const weeks = yearFilter
+    ? FC_WEEKS.filter(w=>w.key.startsWith(yearFilter))
+    : FC_WEEKS;
+  if(!weeks.length){ cont.innerHTML='<div class="empty" style="padding:48px">No weeks in selected period.</div>'; return }
+
+  // ── PUBLIC HOLIDAYS ONLY VIEW ─────────────────────────────────────────
+  if(leaveView === 'holidays'){
+    const holsInPeriod = UK_HOLIDAYS.filter(h=>h.date>=weeks[0].start&&h.date<=weeks[weeks.length-1].end);
+
+    // Group by year/month for a clean table
+    const byMonth = {};
+    holsInPeriod.forEach(h=>{
+      const mk = h.date.slice(0,7);
+      if(!byMonth[mk]) byMonth[mk]=[];
+      byMonth[mk].push(h);
+    });
+
+    let h = `<div style="padding:16px 20px;border-bottom:1px solid var(--b1);background:var(--rl);display:flex;align-items:center;gap:10px">
+      <span style="font-size:18px">🇬🇧</span>
+      <div>
+        <div style="font-size:13px;font-weight:600;color:var(--coral)">UK Public Holidays</div>
+        <div style="font-size:11px;color:var(--t2);margin-top:1px">${holsInPeriod.length} holidays in the current forecast period${yearFilter?' ('+yearFilter+')':''}</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr>
+      <th style="padding:8px 14px;text-align:left;background:var(--s2);border-bottom:1px solid var(--b1);font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;width:120px">Date</th>
+      <th style="padding:8px 14px;text-align:left;background:var(--s2);border-bottom:1px solid var(--b1);font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;width:100px">Day</th>
+      <th style="padding:8px 14px;text-align:left;background:var(--s2);border-bottom:1px solid var(--b1);font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">Holiday</th>
+      <th style="padding:8px 14px;text-align:left;background:var(--s2);border-bottom:1px solid var(--b1);font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;width:140px">Week</th>
+      <th style="padding:8px 14px;text-align:right;background:var(--s2);border-bottom:1px solid var(--b1);font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;width:120px">Resources affected</th>
+    </tr></thead><tbody>`;
+
+    const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    let lastMonth = '';
+    holsInPeriod.forEach(hol=>{
+      const d = new Date(hol.date+'T00:00');
+      const mk = hol.date.slice(0,7);
+      const mLabel = MONTH_NAMES[d.getMonth()]+' '+d.getFullYear();
+      // Find which week this falls in
+      const week = FC_WEEKS.find(w=>w.start<=hol.date&&w.end>=hol.date);
+      // Count how many fcResources have personal leave on this date too
+      const conflictCount = fcResources.filter(r=>(r.fcLeaves||[]).some(l=>l.start<=hol.date&&l.end>=hol.date)).length;
+      // Month group header
+      if(mk!==lastMonth){
+        h+=`<tr><td colspan="5" style="padding:10px 14px 4px;background:var(--s2);font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--b1)">${mLabel}</td></tr>`;
+        lastMonth=mk;
+      }
+      h+=`<tr style="border-bottom:1px solid var(--b1)" onmouseenter="this.style.background='var(--rl)'" onmouseleave="this.style.background=''">
+        <td style="padding:10px 14px;font-weight:600;color:var(--coral)">${d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</td>
+        <td style="padding:10px 14px;color:var(--t2)">${DAY_NAMES[d.getDay()]}</td>
+        <td style="padding:10px 14px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">🏖</span>
+            <span style="font-weight:500">${hol.name}</span>
+          </div>
+        </td>
+        <td style="padding:10px 14px;color:var(--t3);font-size:11px">${week?week.fullLabel+' ('+fmtWeekRange(week)+')':'—'}</td>
+        <td style="padding:10px 14px;text-align:right">${conflictCount>0?`<span style="background:var(--al);color:var(--amber);border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600">⚠ ${conflictCount} also on leave</span>`:'<span style="color:var(--t3);font-size:11px">—</span>'}</td>
+      </tr>`;
+    });
+
+    if(!holsInPeriod.length){
+      h+=`<tr><td colspan="5" style="padding:40px;text-align:center;color:var(--t3)">No UK public holidays in the selected period.</td></tr>`;
+    }
+
+    h+=`</tbody></table></div>
+    <div style="padding:10px 14px;border-top:1px solid var(--b1);background:var(--s2);font-size:11px;color:var(--t3)">
+      ${holsInPeriod.length} public holidays · England & Wales · Switch to "All leave" view to see resource personal leave alongside holidays
+    </div>`;
+
+    cont.innerHTML = h;
+    return;
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().slice(0,10);
+
+  // For personal-only view, only show resources that have at least one leave entry
+  const resourcesToShow = leaveView==='personal'
+    ? fcResources.filter(r=>(r.fcLeaves||[]).length>0)
+    : fcResources;
+
+  if(leaveView==='personal' && resourcesToShow.length===0){
+    cont.innerHTML=`<div class="empty" style="padding:48px">No personal leave entered yet.<br><span style="font-size:12px;color:var(--t3)">Click ✎ on any resource in the "All leave" view to add leave.</span></div>`;
+    return;
+  }
+
+  // Build month groups for spanning header
+  const monthGroups = [];
+  weeks.forEach(w=>{
+    const last = monthGroups[monthGroups.length-1];
+    if(last && last.key===w.monthKey) last.count++;
+    else monthGroups.push({key:w.monthKey, label:w.monthLabel+" '"+String(w.key.slice(0,4)).slice(2), count:1});
+  });
+
+  // Is today in a given week?
+  function isCurrentWeek(w){ return todayStr>=w.start&&todayStr<=w.end }
+
+  // Leave status for a resource in a week
+  function cellInfo(r, w){
+    const holidays = ukHolidaysInWeek(w);
+    const personal = fcLeaveInWeek(r, w);
+    const isHol = holidays.length>0;
+    const isPers = personal.length>0;
+    if(isHol && isPers) return {bg:'#FCEBEB',border:'var(--red)',icon:'🏖⚠',tip:holidays.map(h=>h.name).join(', ')+' + '+personal.map(l=>l.reason||l.type).join(', '),badge:'both'};
+    if(isHol)  return {bg:'#FCEBEB',border:'#E24B4A',icon:'🏖',tip:holidays.map(h=>h.name).join(', '),badge:'hol'};
+    if(isPers) return {bg:'#FEF3C7',border:'var(--amber)',icon:'⚠',tip:personal.map(l=>(l.type==='annual'?'Annual leave':l.type==='sick'?'Sick':l.reason||'Leave')+': '+l.start+(l.end&&l.end!==l.start?' – '+l.end:'')).join(' · '),badge:'pers'};
+    return {bg:'',border:'var(--b1)',icon:'',tip:fmtWeekRange(w),badge:''};
+  }
+
+  const CELL_W = 36; // px per week cell
+
+  let h = `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table style="border-collapse:collapse;min-width:${180+weeks.length*CELL_W}px;width:100%;font-size:11px">
+
+  <!-- Month header row -->
+  <thead>
+  <tr>
+    <th style="width:180px;min-width:180px;padding:8px 12px;background:var(--s2);border-bottom:2px solid var(--b1);border-right:1px solid var(--b1);text-align:left;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;position:sticky;left:0;z-index:10">Resource</th>
+    ${monthGroups.map(mg=>`<th colspan="${mg.count}" style="padding:6px 4px;background:var(--teal);color:#fff;font-size:10px;font-weight:700;text-align:center;border-right:2px solid rgba(255,255,255,.3);white-space:nowrap">${mg.label}</th>`).join('')}
+  </tr>
+
+  <!-- Week sub-header row -->
+  <tr>
+    <th style="padding:5px 12px;background:var(--s2);border-bottom:1px solid var(--b1);border-right:1px solid var(--b1);text-align:left;font-size:9px;color:var(--t3);font-weight:500;position:sticky;left:0;z-index:10">
+      <div style="display:flex;gap:8px;align-items:center">
+        <span>${weeks.length} weeks</span>
+        <span style="color:var(--t3)">·</span>
+        <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;background:var(--red);border-radius:2px;display:inline-block"></span>Holiday</span>
+        <span style="display:flex;align-items:center;gap:3px"><span style="width:8px;height:8px;background:var(--amber);border-radius:2px;display:inline-block"></span>Leave</span>
+      </div>
+    </th>
+    ${weeks.map(w=>{
+      const isCur = isCurrentWeek(w);
+      const hasHol = ukHolidaysInWeek(w).length>0;
+      return `<th style="padding:4px 1px;text-align:center;border-right:1px solid var(--b1);border-bottom:1px solid var(--b1);font-size:9px;font-weight:${isCur?'700':'500'};color:${isCur?'var(--teal)':'var(--t3)'};white-space:nowrap;background:${isCur?'var(--tl)':hasHol?'var(--rl)':'var(--s2)'};width:${CELL_W}px;min-width:${CELL_W}px" title="${fmtWeekRange(w)}">${w.label}</th>`;
+    }).join('')}
+  </tr>`;
+
+  // UK Holidays row — hidden in personal-only view
+  if(leaveView !== 'personal'){
+    h += `<tr style="background:var(--s2)">
+      <td style="padding:5px 12px;border-right:1px solid var(--b1);border-bottom:2px solid var(--b1);font-size:10px;font-weight:600;color:var(--t2);position:sticky;left:0;background:var(--s2);z-index:9;white-space:nowrap">🇬🇧 UK Holidays</td>
+      ${weeks.map(w=>{
+        const hols = ukHolidaysInWeek(w);
+        const isCur = isCurrentWeek(w);
+        if(hols.length){
+          const shortName = hols[0].name.replace("'s Day",'').replace(' Bank Holiday','').replace(' Day','').replace(' Monday','').replace(' Friday','');
+          return `<td style="padding:2px 1px;text-align:center;border-right:1px solid var(--b1);border-bottom:2px solid var(--b1);background:var(--rl)" title="${hols.map(h=>h.name+' — '+h.date).join('\n')}">
+            <div style="background:var(--red);border-radius:3px;margin:1px;padding:3px 2px;font-size:8px;font-weight:700;color:#fff;writing-mode:vertical-lr;transform:rotate(180deg);height:44px;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:default">${shortName}</div>
+          </td>`;
+        }
+        return `<td style="padding:2px 1px;border-right:1px solid var(--b1);border-bottom:2px solid var(--b1);background:${isCur?'var(--tl)':''}"></td>`;
+      }).join('')}
+    </tr>`;
+  }
+
+  h += `</thead><tbody>`;
+
+  resourcesToShow.forEach((r,ri)=>{
+    const evenBg = ri%2===0?'var(--sf)':'var(--s2)';
+    // Count leave days for summary
+    const leaveDays = (r.fcLeaves||[]).reduce((sum,l)=>{
+      if(!l.start||!l.end) return sum;
+      return sum + Math.round((new Date(l.end+'T00:00')-new Date(l.start+'T00:00'))/86400000)+1;
+    },0);
+    const holCount = weeks.filter(w=>ukHolidaysInWeek(w).length>0).length;
+
+    h+=`<tr>
+      <td style="padding:0;border-right:1px solid var(--b1);border-bottom:1px solid var(--b1);position:sticky;left:0;background:${evenBg};z-index:8">
+        <div style="display:flex;align-items:center;gap:6px;padding:5px 10px 5px 12px;min-height:34px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</div>
+            <div style="font-size:9px;color:var(--t3);margin-top:1px">${r.role||''}</div>
+          </div>
+          ${leaveDays?`<span style="font-size:9px;background:var(--al);color:var(--amber);border-radius:8px;padding:1px 5px;white-space:nowrap;flex-shrink:0">${leaveDays}d</span>`:''}
+          <button class="btn-icon" onclick="openLeavePlanModal('${r.id}')" title="Edit leave" style="font-size:10px;flex-shrink:0;padding:2px 5px">✎</button>
+        </div>
+      </td>
+      ${weeks.map(w=>{
+        const ci = cellInfo(r,w);
+        const isCur = isCurrentWeek(w);
+        const baseStyle = `padding:2px 1px;text-align:center;border-right:1px solid var(--b1);border-bottom:1px solid var(--b1);`;
+        if(ci.badge==='both'){
+          return `<td style="${baseStyle}background:${ci.bg};border-top:2px solid ${ci.border}" title="${ci.tip}">
+            <div style="font-size:9px;line-height:1.3">${ci.icon}</div></td>`;
+        }
+        if(ci.badge==='hol'){
+          return `<td style="${baseStyle}background:${ci.bg};border-top:2px solid ${ci.border}" title="${ci.tip}">
+            <div style="font-size:9px;line-height:1.3">🏖</div></td>`;
+        }
+        if(ci.badge==='pers'){
+          const leavesThisWeek = fcLeaveInWeek(r,w);
+          const typeColor = leavesThisWeek[0]?.type==='sick'?'var(--coral)':'var(--amber)';
+          return `<td style="${baseStyle}background:${ci.bg};border-top:2px solid ${typeColor};cursor:pointer" onclick="openLeavePlanModal('${r.id}')" title="${ci.tip}">
+            <div style="font-size:9px;line-height:1.3">⚠</div></td>`;
+        }
+        return `<td style="${baseStyle}background:${isCur?'#F0FDF4':''}" title="${ci.tip}"></td>`;
+      }).join('')}
+    </tr>`;
+  });
+
+  h+=`</tbody></table></div>
+
+  <!-- Summary footer -->
+  <div style="padding:10px 14px;border-top:1px solid var(--b1);display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--s2)">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:12px;height:12px;background:var(--red);border-radius:2px;display:inline-block"></span>UK Public Holiday</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:12px;height:12px;background:var(--amber);border-radius:2px;display:inline-block"></span>Annual leave</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:12px;height:12px;background:var(--coral);border-radius:2px;display:inline-block"></span>Sick leave</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:12px;height:12px;background:var(--purple);border-radius:2px;display:inline-block"></span>Other leave</span>
+      <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)"><span style="width:12px;height:12px;background:#F0FDF4;border:1px solid #86EFAC;border-radius:2px;display:inline-block"></span>This week</span>
+    </div>
+    <span style="margin-left:auto;font-size:11px;color:var(--t3)">${resourcesToShow.length} resource${resourcesToShow.length!==1?'s':''} shown · ${UK_HOLIDAYS.filter(h=>h.date>=weeks[0].start&&h.date<=weeks[weeks.length-1].end).length} holidays in period</span>
+  </div>`;
+
+  cont.innerHTML = h;
+}
+
+
+function showSec(name){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  el(name).classList.add('active');
+  const m={dashboard:0,timeline:1,hierarchy:2,team:3,forecast:4,leave:5};
+  if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
+}
+
+// BANNERS
+function hideBanner(id){ el(id).style.display='none' }
+function triggerReset(){ hideBanner('banner-import'); el('banner-reset').style.display='flex' }
+function confirmReset(){ localStorage.removeItem(SK); hideBanner('banner-reset'); expProj={}; expSite={}; expMs=null; seedData(); seedForecast(); syncForecastToTeam(); renderAll() }
+
+// EXCEL
+function parseXlDate(val){
+  if(!val)return'';
+  if(typeof val==='string'){ const m=val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; if(val.match(/^\d{4}-\d{2}-\d{2}/))return val.slice(0,10); return'' }
+  if(typeof val==='number'){ const d=new Date(Math.round((val-25569)*86400000)); return d.toISOString().slice(0,10) }
+  if(val instanceof Date)return val.toISOString().slice(0,10); return'';
+}
+const CMAP2={green:{c:'#1D9E75',l:'#E1F5EE'},blue:{c:'#185FA5',l:'#E6F1FB'},purple:{c:'#534AB7',l:'#EEEDFE'},amber:{c:'#BA7517',l:'#FAEEDA'},coral:{c:'#993C1D',l:'#FAECE7'},red:{c:'#E24B4A',l:'#FCEBEB'},teal:{c:'#0F6E56',l:'#E1F5EE'},gray:{c:'#6B6960',l:'#F2F1EE'}};
+function handleXlUpload(input){
+  const file=input.files[0]; if(!file)return; input.value='';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      if(typeof XLSX==='undefined'){showErr('SheetJS not loaded, retry.');return}
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array',cellDates:true});
+      const wsName=wb.SheetNames.find(n=>n.toLowerCase().includes('milestone'))||wb.SheetNames[0];
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wsName],{range:3,header:['project','site','name','start','end','owner','colour','progress','deps','attendees','leaves','notes'],defval:''});
+      let created=0,updated=0,skipped=0;
+      rows.forEach(row=>{
+        const pn=String(row.project||'').trim(),sn=String(row.site||'').trim(),mn=String(row.name||'').trim();
+        if(!pn||!sn||!mn){skipped++;return}
+        const sd=parseXlDate(row.start); if(!sd){skipped++;return}
+        const ed=parseXlDate(row.end)||sd;
+        let proj=projects.find(p=>p.name.toLowerCase()===pn.toLowerCase());
+        if(!proj){const id=uid();const col=CMAP2[String(row.colour||'teal').toLowerCase().trim()]||CMAP2.teal;expProj[id]=true;expSite[id+'_'+sn]=true;proj={id,name:pn,desc:'',start:sd,end:ed,color:col.c,colorLight:col.l,sites:[sn]};projects.push(proj)}
+        if(!proj.sites.includes(sn)){proj.sites.push(sn);expSite[proj.id+'_'+sn]=true}
+        const col=CMAP2[String(row.colour||'purple').toLowerCase().trim()]||CMAP2.purple;
+        const progress=Math.min(100,Math.max(0,parseInt(row.progress)||0));
+        const deps=String(row.deps||'').split(',').map(s=>s.trim()).filter(Boolean);
+        const existing=milestones.find(m=>m.projectId===proj.id&&m.name.toLowerCase()===mn.toLowerCase());
+        if(existing){Object.assign(existing,{site:sn,start:sd,end:ed,owner:String(row.owner||'').trim()||existing.owner,color:col.c,colorLight:col.l,progress,deps});updated++}
+        else{milestones.push({id:uid(),projectId:proj.id,site:sn,name:mn,start:sd,end:ed,owner:String(row.owner||'').trim(),color:col.c,colorLight:col.l,progress,deps,teamIds:[],agenda:[],tasks:[]});created++}
+      });
+      renderAll(); showSec('hierarchy');
+      const b=el('banner-import'); b.style.cssText='display:flex;background:#F0FDF4;border-bottom-color:#86EFAC';
+      const m=el('banner-import-msg'); if(m){m.style.color='#166534';m.textContent=`Import complete — ${created} created, ${updated} updated${skipped?', '+skipped+' skipped':''}`}
+      setTimeout(()=>b.style.display='none',5000);
+    }catch(err){
+      const b=el('banner-import'); b.style.cssText='display:flex;background:#FEF2F2;border-bottom-color:#FECACA';
+      const m=el('banner-import-msg'); if(m){m.style.color='#991B1B';m.textContent='Import failed: '+err.message}
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function downloadTemplate(){ const a=document.createElement('a'); a.href='milestone-import-template.xlsx'; a.download='milestone-import-template.xlsx'; a.click() }
+
+// TOOLTIP
+const tipEl=el('tip');
+document.addEventListener('mousemove',e=>{ if(tipEl.style.display==='block'){tipEl.style.left=e.clientX+'px';tipEl.style.top=e.clientY+'px'} });
+
+// PERSIST
+const SK='project_planner_v4';
+// Clear any old incompatible storage versions
+['project_planner_v1','project_planner_v2','project_planner_v3'].forEach(k=>{ try{localStorage.removeItem(k)}catch(e){} });
+function saveData(){
+  try{ localStorage.setItem(SK,JSON.stringify({projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite})) }catch(e){}
+}
+function loadData(){
+  try{
+    const raw=localStorage.getItem(SK); if(!raw){seedData();seedForecast();syncForecastToTeam();return}
+    const d=JSON.parse(raw);
+    projects=d.projects||[]; milestones=d.milestones||[]; teams=d.teams||[];
+    fcPeriodStart=d.fcPeriodStart||'2025-11'; fcPeriodEnd=d.fcPeriodEnd||'2026-05';
+    regenerateFcPeriod();
+    fcResources=d.fcResources||[]; if(!fcResources.length) seedForecast();
+    fcResources.forEach(r=>{ if(!r.weeklyAlloc) r.weeklyAlloc={}; if(!r.fcLeaves) r.fcLeaves=[]; });
+    expProj=d.expProj||{}; expSite=d.expSite||{};
+    milestones.forEach(m=>{
+      if(!m.teamIds)m.teamIds=[];if(!m.agenda)m.agenda=[];
+      if(!m.tasks)m.tasks=[];if(!m.deps)m.deps=[];
+      if(m.progress===undefined)m.progress=0;
+    });
+    teams.forEach(t=>{
+      if(!t.assignments)t.assignments=[];if(!t.modules)t.modules=[];
+      if(!t.leaves)t.leaves=[];if(!t.costRate)t.costRate=0;if(!t.billRate)t.billRate=0;
+    });
+    projects.forEach(p=>{if(!p.sites)p.sites=[]});
+    syncForecastToTeam();
+  }catch(e){console.warn('loadData failed:',e);seedData();seedForecast();syncForecastToTeam()}
+}
+
+function renderAll(){
+  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar'].forEach(fn=>{
+    try{ window[fn](); } catch(e){ console.error(fn+' failed:',e); }
+  });
+  try{ saveData(); } catch(e){}
+}
+
+// INIT
+try{
+  loadData();
+  renderAll();
+} catch(e){
+  document.getElementById('dash-stats').innerHTML=`<div style="padding:20px;color:var(--red);font-size:13px;grid-column:1/-1">⚠ Startup error: ${e.message}. Try clicking ↺ Reset.</div>`;
+  console.error('Init failed:',e);
+}
+</script>
+</body>
+</html>
