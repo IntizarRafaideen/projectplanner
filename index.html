@@ -630,6 +630,41 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 </div>
 </div>
 
+<!-- CLEAR ALLOCATIONS MODAL -->
+<div class="modal-bg" id="modal-clearalloc" onclick="if(event.target===this)closeModal('clearalloc')">
+<div class="modal" style="width:580px">
+  <div class="modal-hdr">
+    <div>
+      <h3>Clear Allocations</h3>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">Remove allocation data for selected resources within a date range</div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('clearalloc')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="frow">
+      <div class="field"><label>Start date</label><input id="ca-start" type="date"></div>
+      <div class="field"><label>End date</label><input id="ca-end" type="date"></div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:4px">
+      <button class="btn btn-sm" onclick="setCaPeriodAll()">Entire forecast period</button>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="sec-lbl" style="margin:0">Select resources</span>
+        <button class="btn btn-sm" onclick="toggleAllCaResources(true)">Select all</button>
+        <button class="btn btn-sm" onclick="toggleAllCaResources(false)">Deselect all</button>
+      </div>
+      <div id="ca-resources" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <div id="ca-preview" style="margin-top:12px;padding:10px 12px;background:var(--rl);border:1px solid var(--red);border-radius:var(--r);font-size:12px;color:var(--coral)"></div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('clearalloc')">Cancel</button>
+    <button class="btn btn-danger" onclick="applyClearAlloc()">Clear allocations</button>
+  </div>
+</div>
+</div>
+
 <!-- ── MODALS ── -->
 <!-- Project -->
 <div class="modal-bg" id="modal-project" onclick="if(event.target===this)closeModal('project')">
@@ -2056,6 +2091,73 @@ function applyBulkAlloc(){
   buildForecast();
 }
 
+// ── CLEAR ALLOCATIONS ────────────────────────────────────────────────────────
+function openClearAllocModal(){
+  setCaPeriodAll();
+  renderCaResources();
+  updateCaPreview();
+  el('modal-clearalloc').classList.add('open');
+}
+
+function setCaPeriodAll(){
+  if(FC_WEEKS.length){
+    el('ca-start').value = FC_WEEKS[0].start;
+    el('ca-end').value = FC_WEEKS[FC_WEEKS.length-1].end;
+  }
+  updateCaPreview();
+}
+
+function renderCaResources(){
+  el('ca-resources').innerHTML = fcResources.map((r,i)=>
+    `<label style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--b1);background:var(--sf)" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background='var(--sf)'">
+      <input type="checkbox" id="ca-res-${i}" checked style="accent-color:var(--red)" onchange="updateCaPreview()">
+      <span style="font-size:12px;font-weight:500;flex:1">${r.name}</span>
+      <span style="font-size:10px;color:var(--t3)">${r.role}</span>
+    </label>`
+  ).join('');
+}
+
+function toggleAllCaResources(checked){
+  fcResources.forEach((_,i)=>{ const cb=el('ca-res-'+i); if(cb) cb.checked=checked; });
+  updateCaPreview();
+}
+
+function updateCaPreview(){
+  const start=el('ca-start')?.value, end=el('ca-end')?.value;
+  const selected = fcResources.filter((_,i)=>el('ca-res-'+i)?.checked).length;
+  const matchedWeeks = FC_WEEKS.filter(w=>w.start<=end && w.end>=start);
+  el('ca-preview').innerHTML = `⚠ This will clear allocations for <strong>${selected}</strong> resources across <strong>${matchedWeeks.length}</strong> weeks. This cannot be undone.`;
+}
+
+function applyClearAlloc(){
+  const startDate=el('ca-start').value, endDate=el('ca-end').value;
+  if(!startDate||!endDate){ alert('Please select start and end dates.'); return; }
+
+  const matchedWeeks = FC_WEEKS.filter(w=>w.start<=endDate && w.end>=startDate);
+  if(!matchedWeeks.length){ alert('No forecast weeks fall within the selected date range.'); return; }
+
+  const selectedResources = fcResources.filter((_,i)=>el('ca-res-'+i)?.checked);
+  if(!selectedResources.length){ alert('Please select at least one resource.'); return; }
+
+  if(!confirm('Clear allocations for '+selectedResources.length+' resources across '+matchedWeeks.length+' weeks?')) return;
+
+  selectedResources.forEach(r=>{
+    if(!r.weeklyAlloc) return;
+    matchedWeeks.forEach(w=>{
+      delete r.weeklyAlloc[w.key];
+    });
+  });
+
+  logAudit('edited','forecast','Clear allocations',[
+    {field:'Resources',to:selectedResources.map(r=>r.name).join(', ')},
+    {field:'Period',to:matchedWeeks.length+' weeks cleared'},
+  ]);
+
+  closeModal('clearalloc');
+  saveData();
+  buildForecast();
+}
+
 function buildFcSummary(){
   let h=`<div class="fc-scroll"><table class="fc-table"><thead><tr>
     <th class="left" style="min-width:155px">Resource</th>
@@ -2183,6 +2285,7 @@ function buildFcWeekly(){
       <button class="btn btn-sm" onclick="fcExpandAllWeekly(true)">▼ Expand all</button>
       <button class="btn btn-sm" onclick="fcExpandAllWeekly(false)">▲ Collapse all</button>
       <button class="btn btn-sm" onclick="openBulkAllocModal()">⚡ Bulk Allocate</button>
+      <button class="btn btn-sm" onclick="openClearAllocModal()" style="color:var(--red)">🗑 Clear Allocations</button>
     </div>
   </div>`;
 
