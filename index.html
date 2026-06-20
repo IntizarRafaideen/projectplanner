@@ -251,6 +251,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="ntab" onclick="showSec('team')">Team</button>
       <button class="ntab" onclick="showSec('forecast')">Forecast</button>
       <button class="ntab" onclick="showSec('leave')">Leave</button>
+      <button class="ntab" onclick="showSec('masterdata')">Master Data</button>
       <button class="ntab" onclick="showSec('audit')">Audit</button>
     </div>
     <div class="nav-right">
@@ -363,6 +364,35 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   </div>
   <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="leave-body">
     <div class="empty" style="padding:40px">Loading leave calendar…</div>
+  </div>
+</div>
+
+<!-- MASTER DATA -->
+<div id="masterdata" class="section">
+  <div class="page-hdr">
+    <h1>Master Data</h1>
+    <span style="font-size:12px;color:var(--t3);margin-right:auto">Manage standard rates and reference data used across the app</span>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--t3);font-weight:500">Rate Card:</span>
+    <select id="md-rc-sel" onchange="buildMasterData()" class="dyn-select"></select>
+    <button class="btn btn-sm" onclick="addNewRateCard()">+ New Rate Card</button>
+    <button class="btn btn-sm" onclick="duplicateRateCard()">⧉ Duplicate</button>
+    <button class="btn btn-sm" onclick="deleteRateCardGroup()" style="color:var(--red)">🗑 Delete Card</button>
+  </div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;margin-bottom:20px">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:10px">
+      <h3 style="font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700;flex:1" id="rc-card-title">Rate Card</h3>
+      <span style="font-size:11px;color:var(--t3)">Hourly rate = Daily rate ÷ 8</span>
+      <button class="btn btn-sm" onclick="addRateCardInline()">+ Add role</button>
+    </div>
+    <div style="padding:10px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;color:var(--t3);font-weight:500">Card name:</span>
+      <input id="rc-card-name" class="dyn-input" style="flex:1;max-width:300px" onchange="renameRateCard(this.value)">
+      <span style="font-size:11px;color:var(--t3);margin-left:auto" id="rc-proj-usage"></span>
+    </div>
+    <div class="fc-scroll" id="rc-table-body"></div>
   </div>
 </div>
 
@@ -553,6 +583,11 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   <div class="modal-body">
     <div class="field"><label>Project name *</label><input id="p-name" placeholder="e.g. ERP Implementation"></div>
     <div class="field"><label>Description</label><textarea id="p-desc" rows="2" placeholder="Brief description…"></textarea></div>
+    <div class="field"><label>Rate Card</label>
+      <select id="p-ratecard" style="width:100%;padding:7px 9px;border:1px solid var(--b2);border-radius:var(--rsm);font-family:Inter,sans-serif;font-size:13px;color:var(--tx);background:var(--sf);outline:none">
+        <option value="">-- No rate card --</option>
+      </select>
+    </div>
     <div class="frow">
       <div class="field"><label>Start date</label><input id="p-start" type="date"></div>
       <div class="field"><label>End date</label><input id="p-end" type="date"></div>
@@ -615,7 +650,12 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   <div class="modal-body">
     <div class="frow">
       <div class="field"><label>Full name *</label><input id="mem-name" placeholder="e.g. Alice Johnson"></div>
-      <div class="field"><label>Role / Title *</label><input id="mem-role" placeholder="e.g. Business Analyst"></div>
+      <div class="field"><label>Role / Title *</label>
+        <select id="mem-role-sel" onchange="onRoleSelect()" style="width:100%;padding:7px 9px;border:1px solid var(--b2);border-radius:var(--rsm);font-family:Inter,sans-serif;font-size:13px;color:var(--tx);background:var(--sf);outline:none">
+          <option value="">-- Select role or type custom --</option>
+        </select>
+        <input id="mem-role" placeholder="Or type custom role" style="margin-top:4px">
+      </div>
     </div>
     <div class="frow">
       <div class="field"><label>Email</label><input id="mem-email" type="email" placeholder="alice@company.com"></div>
@@ -710,6 +750,33 @@ const CMAP = {
   teal:{c:'#0F6E56',l:'#E1F5EE'}, gray:{c:'#6B6960',l:'#F2F1EE'}
 };
 
+// ─── RATE CARD MASTER DATA ───────────────────────────────────────────────────
+let RATE_CARDS = [
+  {id:'rc_default', name:'Fortude Standard', rates:[
+    {role:'Senior Solutions Architect (Onshore)',dailyRate:1000},
+    {role:'Solutions Architect (Onshore)',dailyRate:950},
+    {role:'Senior Finance Consultant (Onshore)',dailyRate:900},
+    {role:'Senior Functional Consultant (Onshore)',dailyRate:850},
+    {role:'Senior Functional Consultant (Offshore)',dailyRate:680},
+    {role:'Functional Consultant (Onshore)',dailyRate:800},
+    {role:'Senior Technical Consultant (Offshore)',dailyRate:680},
+    {role:'Technical Consultant (Offshore)',dailyRate:640},
+    {role:'Program Manager (Onshore)',dailyRate:850},
+    {role:'Project Manager (Onshore)',dailyRate:800},
+  ]}
+];
+function getRateCard(rcId){ return RATE_CARDS.find(r=>r.id===rcId) || null; }
+function getRateForRole(roleName, rcId){
+  const rc = rcId ? getRateCard(rcId) : RATE_CARDS[0];
+  if(!rc) return null;
+  return rc.rates.find(r=>r.role===roleName) || null;
+}
+function allRolesFromCards(){
+  const roles = new Map();
+  RATE_CARDS.forEach(rc=>rc.rates.forEach(r=>{ if(!roles.has(r.role)) roles.set(r.role, r.dailyRate); }));
+  return [...roles.entries()].map(([role,dailyRate])=>({role,dailyRate}));
+}
+
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let projects=[], milestones=[], teams=[];
 let eProjId=null, eMsId=null, eMemId=null;
@@ -743,7 +810,7 @@ function el(id){ return document.getElementById(id) }
 function seedData(){
   expProj={proj1:true};
   expSite={'proj1_Site 1':true,'proj1_PAL':true};
-  projects=[{id:'proj1',name:'ERP Implementation',desc:'Fortude ERP rollout',start:'2025-07-07',end:'2026-03-30',color:'#1D9E75',colorLight:'#E1F5EE',sites:['Site 1','PAL']}];
+  projects=[{id:'proj1',name:'ERP Implementation',desc:'Fortude ERP rollout',start:'2025-07-07',end:'2026-03-30',color:'#1D9E75',colorLight:'#E1F5EE',sites:['Site 1','PAL'],rateCardId:'rc_default'}];
   milestones=[
     {id:'m1',projectId:'proj1',site:'Site 1',name:'DM Design Freeze',start:'2025-09-08',end:'2025-09-08',owner:'Design Lead',color:'#1D9E75',colorLight:'#E1F5EE',progress:100,deps:['Scenario list','CRP 1 outputs'],teamIds:['mbr1','mbr3'],agenda:[{id:'a1',date:'2025-09-08',time:'09:00',title:'Final design review',who:'Design Lead',notes:'With Syzan & Co'},{id:'a2',date:'2025-09-08',time:'10:30',title:'Sign-off on specs',who:'All',notes:''},{id:'a3',date:'2025-09-08',time:'11:30',title:'Freeze confirmation',who:'PM',notes:'Distribute to dev'}],tasks:[{id:'t1',label:'All DM specs reviewed',done:true,owner:'Design Lead'},{id:'t2',label:'Sign-off received',done:true,owner:'PM'},{id:'t3',label:'Specs distributed',done:true,owner:'BA'}]},
     {id:'m2',projectId:'proj1',site:'Site 1',name:'Wave 3 Solution Freeze',start:'2025-10-06',end:'2025-10-06',owner:'Solution Architect',color:'#185FA5',colorLight:'#E6F1FB',progress:100,deps:['CRP 2 complete','Gap list finalised'],teamIds:['mbr2','mbr4'],agenda:[{id:'a1',date:'2025-10-06',time:'09:00',title:'Solution blueprint review',who:'Arch Team',notes:''},{id:'a2',date:'2025-10-06',time:'10:30',title:'Gap analysis sign-off',who:'BA + PM',notes:''},{id:'a3',date:'2025-10-06',time:'12:00',title:'Baseline distribution',who:'PM',notes:'Email all stakeholders'}],tasks:[{id:'t1',label:'Blueprint finalised',done:true,owner:'Architect'},{id:'t2',label:'Gaps documented',done:true,owner:'BA'},{id:'t3',label:'Steering approved',done:true,owner:'PM'}]},
@@ -1134,6 +1201,8 @@ function openProjModal(editId){
   el('proj-title').textContent=p?'Edit project':'New project';
   el('p-name').value=p?.name||''; el('p-desc').value=p?.desc||'';
   el('p-start').value=p?.start||''; el('p-end').value=p?.end||'';
+  const rcSel=el('p-ratecard');
+  rcSel.innerHTML='<option value="">-- No rate card --</option>'+RATE_CARDS.map(rc=>`<option value="${rc.id}"${p?.rateCardId===rc.id?' selected':''}>${rc.name} (${rc.rates.length} roles)</option>`).join('');
   buildCp('proj-cp',pickProj);
   if(p){ const idx=PAL.findIndex(x=>x.c===p.color); if(idx>=0){ qsa('#proj-cp .cp',e=>e.classList.remove('sel')); document.querySelectorAll('#proj-cp .cp')[idx]?.classList.add('sel'); selProjCol=PAL[idx] } } else selProjCol=PAL[1];
   renderSiteFields(p?.sites||['']);
@@ -1143,17 +1212,19 @@ function saveProject(){
   const name=el('p-name').value.trim(); if(!name){alert('Please enter a project name.');return}
   const sites=[...document.querySelectorAll('[id^=sf-]')].map(e=>e.value.trim()).filter(Boolean);
   if(!sites.length){alert('Add at least one site.');return}
-  const newData={name,desc:el('p-desc').value,start:el('p-start').value,end:el('p-end').value,sites};
+  const rateCardId=el('p-ratecard').value||'';
+  const rcName=rateCardId?getRateCard(rateCardId)?.name||'':'';
+  const newData={name,desc:el('p-desc').value,start:el('p-start').value,end:el('p-end').value,sites,rateCardId};
   if(eProjId){
     const p=projects.find(x=>x.id===eProjId);
-    const changes=diffObj(p,newData,[{key:'name',label:'Name'},{key:'desc',label:'Description'},{key:'start',label:'Start date'},{key:'end',label:'End date'},{key:'sites',label:'Sites'}]);
+    const changes=diffObj(p,newData,[{key:'name',label:'Name'},{key:'desc',label:'Description'},{key:'start',label:'Start date'},{key:'end',label:'End date'},{key:'sites',label:'Sites'},{key:'rateCardId',label:'Rate Card'}]);
     sites.forEach(s=>{ if(!(eProjId+'_'+s in expSite)) expSite[eProjId+'_'+s]=true });
-    Object.assign(p,{name,desc:newData.desc,start:newData.start,end:newData.end,color:selProjCol.c,colorLight:selProjCol.l,sites});
+    Object.assign(p,{name,desc:newData.desc,start:newData.start,end:newData.end,color:selProjCol.c,colorLight:selProjCol.l,sites,rateCardId});
     if(changes.length) logAudit('edited','project',name,changes);
   } else {
     const nid=uid(); expProj[nid]=true; sites.forEach(s=>expSite[nid+'_'+s]=true);
-    projects.push({id:nid,name,desc:newData.desc,start:newData.start,end:newData.end,color:selProjCol.c,colorLight:selProjCol.l,sites});
-    logAudit('created','project',name,[{field:'Name',to:name},{field:'Start date',to:newData.start},{field:'End date',to:newData.end},{field:'Sites',to:sites.join(', ')}]);
+    projects.push({id:nid,name,desc:newData.desc,start:newData.start,end:newData.end,color:selProjCol.c,colorLight:selProjCol.l,sites,rateCardId});
+    logAudit('created','project',name,[{field:'Name',to:name},{field:'Start date',to:newData.start},{field:'End date',to:newData.end},{field:'Sites',to:sites.join(', ')},{field:'Rate Card',to:rcName}]);
   }
   closeModal('project'); renderAll();
 }
@@ -1252,11 +1323,39 @@ function renderMemLeaves(){
   </div>`).join('');
 }
 function addMemLeave(){ memLeaves.push({start:'',end:'',reason:''}); renderMemLeaves() }
+function onRoleSelect(){
+  const sel=el('mem-role-sel');
+  const val=sel.value;
+  if(!val){ el('mem-role').value=''; return; }
+  const parts=val.split('||');
+  const roleName=parts[0], rcId=parts[1]||'';
+  el('mem-role').value=roleName;
+  const rc=getRateForRole(roleName, rcId);
+  if(rc){
+    el('mem-bill').value=(rc.dailyRate/8).toFixed(2);
+  }
+}
+
+function populateRoleDropdown(currentRole){
+  const sel=el('mem-role-sel');
+  let opts='<option value="">-- Select role or type custom --</option>';
+  RATE_CARDS.forEach(rc=>{
+    opts+=`<optgroup label="${rc.name}">`;
+    rc.rates.forEach(r=>{
+      const val=r.role+'||'+rc.id;
+      opts+=`<option value="${val}"${r.role===currentRole?' selected':''}>${r.role} — £${r.dailyRate}/day</option>`;
+    });
+    opts+=`</optgroup>`;
+  });
+  sel.innerHTML=opts;
+}
+
 function openMemModal(editId){
   eMemId=editId||null;
   const m=editId?teams.find(t=>t.id===editId):null;
   el('mem-title').textContent=m?'Edit member':'New team member';
   el('mem-name').value=m?.name||''; el('mem-role').value=m?.role||''; el('mem-email').value=m?.email||'';
+  populateRoleDropdown(m?.role||'');
   el('mem-modules').value=(m?.modules||[]).join(', ');
   el('mem-cost').value=m?.costRate||''; el('mem-bill').value=m?.billRate||'';
   buildCp('mem-cp',pickMem);
@@ -2678,6 +2777,144 @@ function clearAuditLog(){
   buildAuditLog();
 }
 
+// ─── RATE CARD (MASTER DATA TAB) ────────────────────────────────────────────
+let selectedRcId = '';
+
+function getSelectedRc(){
+  if(!selectedRcId && RATE_CARDS.length) selectedRcId = RATE_CARDS[0].id;
+  return RATE_CARDS.find(r=>r.id===selectedRcId) || RATE_CARDS[0] || null;
+}
+
+function buildMasterData(){
+  const sel = el('md-rc-sel');
+  if(!sel) return;
+  if(!selectedRcId && RATE_CARDS.length) selectedRcId = RATE_CARDS[0].id;
+  sel.innerHTML = RATE_CARDS.map(rc=>`<option value="${rc.id}"${rc.id===selectedRcId?' selected':''}>${rc.name} (${rc.rates.length} roles)</option>`).join('');
+  selectedRcId = sel.value;
+
+  const rc = getSelectedRc();
+  const cont = el('rc-table-body');
+  const titleEl = el('rc-card-title');
+  const nameEl = el('rc-card-name');
+  const usageEl = el('rc-proj-usage');
+
+  if(!rc){
+    if(cont) cont.innerHTML = '<div class="empty" style="padding:40px">No rate cards yet. Click "+ New Rate Card" to create one.</div>';
+    if(titleEl) titleEl.textContent = 'No Rate Card';
+    if(nameEl) nameEl.value = '';
+    if(usageEl) usageEl.textContent = '';
+    return;
+  }
+
+  if(titleEl) titleEl.textContent = rc.name;
+  if(nameEl) nameEl.value = rc.name;
+  const linkedProjects = projects.filter(p=>p.rateCardId===rc.id).map(p=>p.name);
+  if(usageEl) usageEl.innerHTML = linkedProjects.length
+    ? 'Used by: ' + linkedProjects.map(n=>`<span style="background:var(--tl);color:var(--teal);padding:1px 6px;border-radius:10px;font-size:10px;font-weight:600">${n}</span>`).join(' ')
+    : '<span style="color:var(--t3)">Not linked to any project</span>';
+
+  if(!rc.rates.length){
+    cont.innerHTML = '<div class="empty" style="padding:40px">No roles in this rate card. Click "+ Add role" to get started.</div>';
+    return;
+  }
+
+  let h = `<table class="fc-table"><thead><tr>
+    <th class="left" style="width:40px">#</th>
+    <th class="left" style="min-width:280px">Role</th>
+    <th style="width:120px">Daily Rate (£)</th>
+    <th style="width:120px">Hourly Rate (£)</th>
+    <th style="width:100px">Type</th>
+    <th style="width:50px"></th>
+  </tr></thead><tbody>`;
+
+  rc.rates.forEach((r, i) => {
+    const hourly = ((r.dailyRate||0)/8).toFixed(2);
+    const type = r.role.includes('Offshore') ? 'Offshore' : r.role.includes('Onshore') ? 'Onshore' : '—';
+    const typeBg = type==='Offshore' ? 'var(--pl)' : type==='Onshore' ? 'var(--tl)' : 'var(--s2)';
+    const typeCol = type==='Offshore' ? 'var(--purple)' : type==='Onshore' ? 'var(--teal)' : 'var(--t3)';
+
+    h += `<tr>
+      <td class="left" style="color:var(--t3);font-size:11px">${i+1}</td>
+      <td class="left">
+        <span class="editable" contenteditable onblur="editRateCardRole(${i},'role',this.textContent)" style="font-weight:500">${r.role}</span>
+      </td>
+      <td style="text-align:right">
+        <input type="number" value="${r.dailyRate||0}" min="0" step="10"
+          onchange="editRateCardRole(${i},'dailyRate',this.value)"
+          style="width:80px;padding:3px 4px;text-align:right;border:1px solid var(--b2);border-radius:4px;font-size:12px;font-family:Inter,sans-serif;background:var(--sf);color:var(--teal);font-weight:600">
+      </td>
+      <td style="text-align:right;color:var(--t2)">£${hourly}</td>
+      <td style="text-align:center"><span style="font-size:10px;padding:2px 8px;border-radius:20px;background:${typeBg};color:${typeCol};font-weight:600">${type}</span></td>
+      <td style="text-align:center">
+        <button class="fc-edit-btn" onclick="deleteRateCardRole(${i})" title="Delete" style="color:var(--t3)">🗑</button>
+      </td>
+    </tr>`;
+  });
+
+  h += `</tbody></table>`;
+  cont.innerHTML = h;
+}
+
+function editRateCardRole(i, field, val){
+  const rc = getSelectedRc(); if(!rc || !rc.rates[i]) return;
+  if(field === 'dailyRate') rc.rates[i].dailyRate = parseFloat(val) || 0;
+  else rc.rates[i][field] = (val||'').trim();
+  saveData(); buildMasterData();
+}
+
+function deleteRateCardRole(i){
+  const rc = getSelectedRc(); if(!rc) return;
+  if(!confirm('Remove "' + rc.rates[i].role + '" from ' + rc.name + '?')) return;
+  logAudit('deleted','ratecard',rc.rates[i].role + ' (' + rc.name + ')',[]);
+  rc.rates.splice(i, 1);
+  saveData(); buildMasterData();
+}
+
+function addRateCardInline(){
+  const rc = getSelectedRc(); if(!rc) return;
+  rc.rates.push({role: '', dailyRate: 0});
+  saveData(); buildMasterData();
+}
+
+function renameRateCard(val){
+  const rc = getSelectedRc(); if(!rc) return;
+  rc.name = (val||'').trim() || 'Unnamed';
+  saveData(); buildMasterData();
+}
+
+function addNewRateCard(){
+  const name = prompt('Rate card name (e.g. "Client X Rates"):');
+  if(!name || !name.trim()) return;
+  const newRc = {id: uid(), name: name.trim(), rates: []};
+  RATE_CARDS.push(newRc);
+  selectedRcId = newRc.id;
+  logAudit('created','ratecard',newRc.name,[]);
+  saveData(); buildMasterData();
+}
+
+function duplicateRateCard(){
+  const rc = getSelectedRc(); if(!rc) return;
+  const newRc = {id: uid(), name: rc.name + ' (copy)', rates: rc.rates.map(r=>({...r}))};
+  RATE_CARDS.push(newRc);
+  selectedRcId = newRc.id;
+  logAudit('created','ratecard',newRc.name,[{field:'Duplicated from',to:rc.name}]);
+  saveData(); buildMasterData();
+}
+
+function deleteRateCardGroup(){
+  const rc = getSelectedRc(); if(!rc) return;
+  const linked = projects.filter(p=>p.rateCardId===rc.id);
+  if(linked.length){
+    alert('Cannot delete — this rate card is linked to: ' + linked.map(p=>p.name).join(', ') + '. Unlink it from those projects first.');
+    return;
+  }
+  if(!confirm('Delete rate card "' + rc.name + '" and all its roles?')) return;
+  logAudit('deleted','ratecard',rc.name,[]);
+  RATE_CARDS = RATE_CARDS.filter(r=>r.id!==rc.id);
+  selectedRcId = RATE_CARDS.length ? RATE_CARDS[0].id : '';
+  saveData(); buildMasterData();
+}
+
 // ─── PUBLIC HOLIDAYS EDITOR ─────────────────────────────────────────────────
 let holEditRows = [];
 
@@ -2784,7 +3021,7 @@ function showSec(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   el(name).classList.add('active');
-  const m={dashboard:0,timeline:1,hierarchy:2,team:3,forecast:4,leave:5,audit:6};
+  const m={dashboard:0,timeline:1,hierarchy:2,team:3,forecast:4,leave:5,masterdata:6,audit:7};
   if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
 }
 
@@ -2849,7 +3086,7 @@ const SK='project_planner_v4';
 // Clear any old incompatible storage versions
 ['project_planner_v1','project_planner_v2','project_planner_v3'].forEach(k=>{ try{localStorage.removeItem(k)}catch(e){} });
 function getStateObj(){
-  return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS};
+  return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS,rateCards:RATE_CARDS};
 }
 
 function saveData(){
@@ -2871,6 +3108,7 @@ function applyState(d){
   regenerateFcPeriod();
   auditLog=d.auditLog||[];
   if(d.ukHolidays && d.ukHolidays.length){ UK_HOLIDAYS.length=0; d.ukHolidays.forEach(h=>UK_HOLIDAYS.push(h)); }
+  if(d.rateCards && d.rateCards.length){ RATE_CARDS.length=0; d.rateCards.forEach(r=>RATE_CARDS.push(r)); }
   fcResources=d.fcResources||[]; if(!fcResources.length) seedForecast();
   fcResources.forEach(r=>{ if(!r.weeklyAlloc) r.weeklyAlloc={}; if(!r.fcLeaves) r.fcLeaves=[]; });
   expProj=d.expProj||{}; expSite=d.expSite||{};
@@ -2912,7 +3150,7 @@ function loadData(){
 }
 
 function renderAll(){
-  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildAuditLog'].forEach(fn=>{
+  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildMasterData','buildAuditLog'].forEach(fn=>{
     try{ window[fn](); } catch(e){ console.error(fn+' failed:',e); }
   });
   try{ saveData(); } catch(e){}
