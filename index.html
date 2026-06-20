@@ -1309,9 +1309,9 @@ function buildTeam(){
   const totalMargin=totalBill-totalCost;
   el('team-stats').innerHTML=[
     {sl:'Team members',sv:filtered.length,ss:'Shown'},
-    {sl:'Cost rate',sv:'£'+totalCost+'/hr',ss:'Combined hourly cost'},
-    {sl:'Bill rate',sv:'£'+totalBill+'/hr',ss:'Combined billing'},
-    {sl:'Margin',sv:'£'+totalMargin+'/hr',ss:'Combined margin',col:totalMargin>=0?'var(--green)':'var(--red)'},
+    {sl:'Cost rate',sv:'£'+totalCost.toFixed(2)+'/hr',ss:'Combined hourly cost'},
+    {sl:'Bill rate',sv:'£'+totalBill.toFixed(2)+'/hr',ss:'Combined billing'},
+    {sl:'Margin',sv:'£'+totalMargin.toFixed(2)+'/hr',ss:'Combined margin',col:totalMargin>=0?'var(--green)':'var(--red)'},
     {sl:'On leave today',sv:onLeave,ss:'Currently unavailable',col:onLeave>0?'var(--amber)':''},
   ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
 
@@ -1358,7 +1358,7 @@ function buildTeam(){
           onchange="editTeamField('${m.id}','billRate',this.value)"
           style="width:60px;padding:3px 4px;text-align:right;border:1px solid var(--b2);border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);color:var(--teal);font-weight:600">
       </td>
-      <td style="text-align:right;font-weight:600;color:${margin>=0?'var(--green)':'var(--red)'}">£${margin}</td>
+      <td style="text-align:right;font-weight:600;color:${margin>=0?'var(--green)':'var(--red)'}">£${margin.toFixed(2)}</td>
       <td class="left" style="font-size:11px">
         ${activeLeave?`<span class="leave-tag">On leave</span>`
           :nextLeave?`<span style="color:var(--amber)">${fmtS(nextLeave.start)} – ${fmtS(nextLeave.end)}</span>`
@@ -1374,9 +1374,9 @@ function buildTeam(){
   // Totals row
   h+=`<tr class="total-row">
     <td class="left" colspan="5">TOTAL (${filtered.length} members)</td>
-    <td style="text-align:right;color:#993C1D">£${totalCost}</td>
-    <td style="text-align:right;color:var(--teal)">£${totalBill}</td>
-    <td style="text-align:right;color:${totalMargin>=0?'var(--green)':'var(--red)'}">£${totalMargin}</td>
+    <td style="text-align:right;color:#993C1D">£${totalCost.toFixed(2)}</td>
+    <td style="text-align:right;color:var(--teal)">£${totalBill.toFixed(2)}</td>
+    <td style="text-align:right;color:${totalMargin>=0?'var(--green)':'var(--red)'}">£${totalMargin.toFixed(2)}</td>
     <td colspan="2"></td>
   </tr>`;
 
