@@ -464,14 +464,20 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
     <h1>Resource Forecast</h1>
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
       <select id="fc-view" onchange="buildForecast()" class="dyn-select">
+        <option value="weekly">Weekly breakdown</option>
         <option value="summary">Summary view</option>
         <option value="monthly">Monthly breakdown</option>
-        <option value="weekly">Weekly breakdown</option>
         <option value="byproject">By project / site</option>
         <option value="analysis">Cost & margin analysis</option>
       </select>
       <select id="fc-week-month" onchange="buildForecast()" class="dyn-select" style="display:none">
         <option value="all">All months</option>
+      </select>
+      <select id="fc-proj-filter" onchange="buildForecast()" class="dyn-select" style="display:none">
+        <option value="">All projects</option>
+      </select>
+      <select id="fc-site-filter" onchange="buildForecast()" class="dyn-select" style="display:none">
+        <option value="">All sites</option>
       </select>
       <button class="btn" onclick="openPeriodModal()" title="Change forecast period">📅 <span id="fc-period-label">Nov 2025 – May 2026</span></button>
       <button class="btn btn-primary" onclick="openForecastModal()">+ Add resource</button>
@@ -1749,6 +1755,20 @@ function buildForecast(){
   // show the month filter only for views that use it
   const wmSelToggle=el('fc-week-month');
   if(wmSelToggle) wmSelToggle.style.display = (view==='weekly'||view==='byproject') ? 'inline-block' : 'none';
+  // show project/site filters for weekly view
+  const projFilter=el('fc-proj-filter'), siteFilter=el('fc-site-filter');
+  if(projFilter){
+    projFilter.style.display = view==='weekly' ? 'inline-block' : 'none';
+    const cv=projFilter.value;
+    projFilter.innerHTML='<option value="">All projects</option>'+projects.map(p=>`<option value="${p.id}"${p.id===cv?' selected':''}>${p.name}</option>`).join('');
+  }
+  if(siteFilter){
+    siteFilter.style.display = view==='weekly' ? 'inline-block' : 'none';
+    const fp=projFilter?.value||'';
+    const allSites=[...new Set(projects.filter(p=>!fp||p.id===fp).flatMap(p=>p.sites||[]))];
+    const cv=siteFilter.value;
+    siteFilter.innerHTML='<option value="">All sites</option>'+allSites.map(s=>`<option value="${s}"${s===cv?' selected':''}>${s}</option>`).join('');
+  }
 
   if(view==='summary') buildFcSummary();
   else if(view==='monthly') buildFcMonthly();
@@ -1888,6 +1908,7 @@ function clearResourceAlloc(resId){
 
 // ── WEEK ALLOCATION MODAL (per-project/site split editor) ─────────────────
 let fcWeekEditRid=null, fcWeekEditWkey=null, fcWeekRows=[];
+let fcWeeklyExpanded = {};
 function openWeekAllocModal(resId, weekKey){
   fcWeekEditRid=resId; fcWeekEditWkey=weekKey;
   const r=fcResources.find(x=>x.id===resId);
@@ -2121,6 +2142,11 @@ function buildFcMonthly(){
   el('fc-main').innerHTML=h;
 }
 
+function fcExpandAllWeekly(expand){
+  fcResources.forEach(r=>{ fcWeeklyExpanded[r.id] = expand; });
+  buildFcWeekly();
+}
+
 function buildFcWeekly(){
   const monthFilter=el('fc-week-month')?.value||'all';
   const weeks = monthFilter==='all' ? FC_WEEKS : FC_WEEKS.filter(w=>w.monthKey===monthFilter);
@@ -2130,9 +2156,29 @@ function buildFcWeekly(){
   }
   if(!weeks.length){ el('fc-main').innerHTML='<div class="empty" style="padding:40px">No weeks to show — try widening your forecast period.</div>'; return }
 
+  // Project/site filter
+  const projFilterVal=el('fc-proj-filter')?.value||'';
+  const siteFilterVal=el('fc-site-filter')?.value||'';
+
+  // Filter resources: only show resources that have allocation on the filtered project/site
+  let filteredResources = fcResources;
+  if(projFilterVal || siteFilterVal){
+    filteredResources = fcResources.filter(r=>{
+      return weeks.some(w=>fcWeekEntries(r,w.key).some(e=>{
+        if(projFilterVal && e.projectId!==projFilterVal) return false;
+        if(siteFilterVal && (e.site||'')!==siteFilterVal) return false;
+        return e.pct>0;
+      }));
+    });
+  }
+
   let h=`<div style="padding:10px 16px;background:var(--tl);border-bottom:1px solid var(--b1);font-size:11px;color:var(--teal);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span>✎</span><span>Click any <strong>Alloc%</strong> cell to enter the week's effort. 🏖 = public holiday, ⚠ = personal leave.</span>
-    <button class="btn btn-sm" style="margin-left:auto" onclick="openBulkAllocModal()">⚡ Bulk Allocate</button>
+    <div style="margin-left:auto;display:flex;gap:4px">
+      <button class="btn btn-sm" onclick="fcExpandAllWeekly(true)">▼ Expand all</button>
+      <button class="btn btn-sm" onclick="fcExpandAllWeekly(false)">▲ Collapse all</button>
+      <button class="btn btn-sm" onclick="openBulkAllocModal()">⚡ Bulk Allocate</button>
+    </div>
   </div>`;
 
   // Build week header info with dates and holiday/leave counts
@@ -2166,10 +2212,29 @@ function buildFcWeekly(){
     <th>Hrs</th>
   </tr></thead><tbody>`;
 
-  fcResources.forEach(r=>{
+  filteredResources.forEach(r=>{
     let pH=0;
-    h+=`<tr>
-      <td class="left" style="font-weight:500;font-size:11px">${r.name}</td>
+    // Collect all unique project/site combos across all weeks for this resource
+    const allSplits = new Map();
+    weeks.forEach(w=>{
+      fcWeekEntries(r,w.key).forEach(e=>{
+        if(e.projectId){
+          const key = e.projectId+'|'+(e.site||'');
+          if(!allSplits.has(key)) allSplits.set(key, {projectId:e.projectId, site:e.site||''});
+        }
+      });
+    });
+    const splits = [...allSplits.values()];
+    const hasSplits = splits.length > 0;
+    const isExp = fcWeeklyExpanded[r.id] !== false;
+
+    // Main summary row
+    h+=`<tr style="cursor:${hasSplits?'pointer':'default'};${hasSplits?'border-bottom:none;':''}" ${hasSplits?`onclick="fcWeeklyExpanded['${r.id}']=!fcWeeklyExpanded['${r.id}'];buildFcWeekly()"`:''}>
+      <td class="left" style="font-weight:600;font-size:11px;white-space:nowrap">
+        ${hasSplits?`<span class="chev${isExp?' open':''}" style="font-size:9px;margin-right:4px">▶</span>`:''}
+        ${r.name}
+        ${hasSplits?`<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--pl);color:var(--purple);margin-left:4px">${splits.length}</span>`:''}
+      </td>
       <td class="left"><span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span></td>
       ${weeks.map(w=>{
         const c=fcCalcWeek(r,w);
@@ -2182,22 +2247,65 @@ function buildFcWeekly(){
         const leaveBorder = leaveStatus==='holiday'?'var(--red)':leaveStatus==='personal'?'var(--amber)':leaveStatus==='both'?'var(--red)':'var(--b2)';
         const leaveIcon = leaveStatus==='holiday'?'🏖':leaveStatus==='personal'?'⚠':leaveStatus==='both'?'🏖':'';
         const leaveTitle = leaveStatus==='holiday'?ukHolidaysInWeek(w).map(h=>h.name).join(', '):leaveStatus==='personal'?'Personal leave overlaps this week':leaveStatus==='both'?'Public holiday + personal leave':'';
-        return `<td style="padding:3px 4px;position:relative;cursor:pointer${leaveBg?';background:'+leaveBg:''}" onclick="openWeekAllocModal('${r.id}','${w.key}')" title="${leaveTitle||('Click to edit allocation'+(splitCount?' ('+splitCount+' project'+(splitCount!==1?'s':'')+')':''))}">
+        return `<td style="padding:3px 4px;position:relative;cursor:pointer${leaveBg?';background:'+leaveBg:''}" onclick="event.stopPropagation();openWeekAllocModal('${r.id}','${w.key}')" title="${leaveTitle||('Click to edit allocation'+(splitCount?' ('+splitCount+' project'+(splitCount!==1?'s':'')+')':''))}">
                   <div style="width:44px;padding:3px 4px;text-align:right;border:1px solid ${leaveBorder};border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);color:${col};font-weight:${c.alloc>0?'600':'400'};position:relative">${c.alloc||0}%${leaveIcon?`<span style="position:absolute;top:-4px;right:-4px;font-size:9px">${leaveIcon}</span>`:''}
                   </div>
-                  ${splitCount>1?`<span style="position:absolute;top:1px;right:1px;background:var(--purple);color:#fff;font-size:8px;font-weight:700;border-radius:8px;padding:0 4px;line-height:1.4">${splitCount}</span>`:''}
                 </td>
                 <td style="color:${col}">${c.hours||'-'}</td>`;
       }).join('')}
       <td style="font-weight:600">${fc1(pH)}</td>
     </tr>`;
+
+    // Expanded sub-rows per project/site
+    if(hasSplits && isExp){
+      splits.forEach(sp=>{
+        const p = projects.find(x=>x.id===sp.projectId);
+        const label = p ? (sp.site ? p.name+' / '+sp.site : p.name) : 'Unknown';
+        const pColor = p?.color || 'var(--t3)';
+        let spH = 0;
+        h+=`<tr style="background:var(--s2)">
+          <td class="left" colspan="2" style="padding-left:28px;font-size:10px;color:var(--t2)">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${pColor};margin-right:5px"></span>
+            ${label}
+          </td>
+          ${weeks.map(w=>{
+            const entries = fcWeekEntries(r, w.key);
+            const match = entries.find(e=>e.projectId===sp.projectId && (e.site||'')===(sp.site||''));
+            const pct = match ? match.pct : 0;
+            const hrs = pct ? Math.round((pct/100)*w.hours*10)/10 : 0;
+            spH += hrs;
+            const col = pct===0?'var(--t3)':pct>=100?'var(--green)':pct>=75?'var(--tm)':'var(--amber)';
+            return `<td style="padding:3px 4px;font-size:10px;color:${col};text-align:right">${pct?pct+'%':'—'}</td>
+                    <td style="font-size:10px;color:${col}">${hrs||'—'}</td>`;
+          }).join('')}
+          <td style="font-size:10px;font-weight:600">${fc1(spH)}</td>
+        </tr>`;
+      });
+      // Unassigned row (entries with no projectId)
+      let unH = 0;
+      const hasUnassigned = weeks.some(w=>fcWeekEntries(r,w.key).some(e=>!e.projectId && e.pct>0));
+      if(hasUnassigned){
+        h+=`<tr style="background:var(--s2)">
+          <td class="left" colspan="2" style="padding-left:28px;font-size:10px;color:var(--t3);font-style:italic">Unassigned</td>
+          ${weeks.map(w=>{
+            const entries = fcWeekEntries(r, w.key);
+            const unPct = entries.filter(e=>!e.projectId).reduce((s,e)=>s+(e.pct||0),0);
+            const hrs = unPct ? Math.round((unPct/100)*w.hours*10)/10 : 0;
+            unH += hrs;
+            return `<td style="padding:3px 4px;font-size:10px;color:var(--t3);text-align:right">${unPct?unPct+'%':'—'}</td>
+                    <td style="font-size:10px;color:var(--t3)">${hrs||'—'}</td>`;
+          }).join('')}
+          <td style="font-size:10px;font-weight:600;color:var(--t3)">${fc1(unH)}</td>
+        </tr>`;
+      }
+    }
   });
 
-  h+=`<tr class="total-row"><td class="left" colspan="2">Weekly totals</td>`;
+  h+=`<tr class="total-row"><td class="left" colspan="2">Weekly totals (${filteredResources.length} resources)</td>`;
   let gH=0;
   weeks.forEach(w=>{
     let wH=0;
-    fcResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours});
+    filteredResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours});
     gH+=wH;
     h+=`<td style="font-size:11px;text-align:center">—</td><td style="font-size:11px">${fc1(wH)}h</td>`;
   });
@@ -2208,7 +2316,7 @@ function buildFcWeekly(){
     <div style="display:flex;gap:4px;align-items:flex-end;height:60px;overflow-x:auto">`;
   weeks.forEach(w=>{
     let wH=0,wC=0,wR=0;
-    fcResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours;wC+=c.cost;wR+=c.revenue});
+    filteredResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours;wC+=c.cost;wR+=c.revenue});
     const npm=wR>0?(wR-wC)/wR:0;
     const bh=Math.max(3,Math.round(Math.abs(npm)*50));
     h+=`<div style="min-width:38px;display:flex;flex-direction:column;align-items:center;gap:2px" title="${w.fullLabel} (${fmtWeekRange(w)}): ${fcp(npm)} NPM, £${fc2(wR-wC)} margin">
