@@ -3354,13 +3354,16 @@ function getStateObj(){
 }
 
 function saveData(){
+  if(!firebaseReady){
+    console.log('Skipping save — waiting for Firestore initial load');
+    return;
+  }
   const data = getStateObj();
   try{ localStorage.setItem(SK,JSON.stringify(data)) }catch(e){}
   // Debounced Firestore save
   if(saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(()=>{
     DOC_REF.set(data).then(()=>{
-      firebaseReady=true;
       console.log('Saved to Firestore');
     }).catch(e=>console.warn('Firestore save failed:',e));
   }, 1500);
@@ -3386,7 +3389,6 @@ function applyState(d){
     if(!t.leaves)t.leaves=[];if(!t.costRate)t.costRate=0;if(!t.billRate)t.billRate=0;
   });
   projects.forEach(p=>{if(!p.sites)p.sites=[]});
-  syncForecastToTeam();
 }
 
 function loadData(){
@@ -3406,7 +3408,7 @@ function loadData(){
         console.log('Firestore update received from server');
         applyState(doc.data());
         try{ localStorage.setItem(SK,JSON.stringify(getStateObj())) }catch(e){}
-        renderAll();
+        renderAll(true);
       }
     } else {
       console.log('No Firestore data yet, uploading current state');
@@ -3417,11 +3419,11 @@ function loadData(){
   });
 }
 
-function renderAll(){
+function renderAll(skipSave){
   ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildMasterData','buildAuditLog'].forEach(fn=>{
     try{ window[fn](); } catch(e){ console.error(fn+' failed:',e); }
   });
-  try{ saveData(); } catch(e){}
+  if(!skipSave){ try{ saveData(); } catch(e){} }
 }
 
 // INIT
