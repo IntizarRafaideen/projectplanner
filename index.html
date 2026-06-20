@@ -248,7 +248,6 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="ntab active" onclick="showSec('dashboard')">Dashboard</button>
       <button class="ntab" onclick="showSec('timeline')">Timeline</button>
       <button class="ntab" onclick="showSec('hierarchy')">Projects</button>
-      <button class="ntab" onclick="showSec('team')">Team</button>
       <button class="ntab" onclick="showSec('forecast')">Forecast</button>
       <button class="ntab" onclick="showSec('leave')">Leave</button>
       <button class="ntab" onclick="showSec('masterdata')">Master Data</button>
@@ -323,25 +322,6 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   <div id="hier-body"></div>
 </div>
 
-<!-- TEAM -->
-<div id="team" class="section">
-  <div class="page-hdr"><h1>Team</h1><button class="btn" onclick="manualSyncForecast()">↻ Sync from Forecast</button><button class="btn btn-primary" onclick="openModal('member')">+ Add member</button></div>
-  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
-    <span style="font-size:11px;color:var(--t3);font-weight:500">Filter:</span>
-    <select id="tf-proj" onchange="buildTeam()" class="dyn-select">
-      <option value="">All projects</option>
-    </select>
-    <select id="tf-site" onchange="buildTeam()" class="dyn-select">
-      <option value="">All sites</option>
-    </select>
-    <select id="tf-role" onchange="buildTeam()" class="dyn-select">
-      <option value="">All roles</option>
-    </select>
-    <input id="tf-search" placeholder="Search name…" oninput="buildTeam()" class="dyn-input" style="max-width:160px">
-  </div>
-  <div class="stats-row" id="team-stats"></div>
-  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="team-table-wrap"></div>
-</div>
 
 <!-- LEAVE PLAN -->
 <div id="leave" class="section">
@@ -393,6 +373,30 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <span style="font-size:11px;color:var(--t3);margin-left:auto" id="rc-proj-usage"></span>
     </div>
     <div class="fc-scroll" id="rc-table-body"></div>
+  </div>
+
+  <!-- TEAM SECTION WITHIN MASTER DATA -->
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;margin-bottom:20px">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:10px">
+      <h3 style="font-family:'Inter Tight',sans-serif;font-size:14px;font-weight:700;flex:1">Team Members</h3>
+      <span style="font-size:11px;color:var(--t3)">Master resource list — used in Forecast, Leave, and Project assignments</span>
+      <button class="btn btn-sm btn-primary" onclick="openModal('member')">+ Add member</button>
+    </div>
+    <div style="padding:8px 18px;border-bottom:1px solid var(--b1);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:11px;color:var(--t3);font-weight:500">Filter:</span>
+      <select id="tf-proj" onchange="buildTeam()" class="dyn-select">
+        <option value="">All projects</option>
+      </select>
+      <select id="tf-site" onchange="buildTeam()" class="dyn-select">
+        <option value="">All sites</option>
+      </select>
+      <select id="tf-role" onchange="buildTeam()" class="dyn-select">
+        <option value="">All roles</option>
+      </select>
+      <input id="tf-search" placeholder="Search name…" oninput="buildTeam()" class="dyn-input" style="max-width:160px">
+    </div>
+    <div class="stats-row" id="team-stats" style="padding:10px 18px"></div>
+    <div id="team-table-wrap"></div>
   </div>
 </div>
 
@@ -1181,7 +1185,7 @@ function msDetail(ms){
       <div class="dsec">
         <h4>Team assigned</h4>
         <div class="chips">
-          ${assignedMems.length?assignedMems.map(m=>`<span class="chip" style="cursor:pointer" onclick="showSec('team')">
+          ${assignedMems.length?assignedMems.map(m=>`<span class="chip" style="cursor:pointer" onclick="showSec('masterdata')">
             <div class="av" style="background:${m.color}22;color:${m.color}">${ini(m.name)}</div>${m.name}
             ${conflicts.some(c=>c.id===m.id)?'<span class="leave-tag" style="font-size:9px;padding:1px 4px">Leave conflict</span>':''}
           </span>`).join(''):'<span style="font-size:12px;color:var(--t3)">No team members assigned</span>'}
@@ -1224,7 +1228,7 @@ function confirmDelSite(projId,site){ const p=projects.find(x=>x.id===projId); i
 function showDelMs(id){ document.querySelectorAll('[id^="dp-"],[id^="ds-"],[id^="dm-"]').forEach(e=>e.style.display='none'); el('dm-'+id).style.display='flex' }
 function confirmDelMs(id){ const ms=milestones.find(m=>m.id===id); if(ms) logAudit('deleted','milestone',ms.name,[]); milestones=milestones.filter(m=>m.id!==id); if(expMs===id)expMs=null; renderAll() }
 function showDelMem(id){ document.querySelectorAll('[id^="dme-"]').forEach(e=>e.style.display='none'); el('dme-'+id).style.display='flex' }
-function confirmDelMem(id){ const t=teams.find(x=>x.id===id); if(t) logAudit('deleted','member',t.name,[]); teams=teams.filter(t=>t.id!==id); renderAll() }
+function confirmDelMem(id){ const t=teams.find(x=>x.id===id); if(t){ logAudit('deleted','member',t.name,[]); fcResources=fcResources.filter(r=>r.name.toLowerCase().trim()!==t.name.toLowerCase().trim()); } teams=teams.filter(t=>t.id!==id); renderAll() }
 
 // ─── TOGGLE ──────────────────────────────────────────────────────────────────
 function toggleProj(id){ expProj[id]=!expProj[id]; buildHierarchy() }
@@ -1544,8 +1548,9 @@ function editTeamField(id, field, val){
 function confirmDelMemInline(id){
   const t=teams.find(x=>x.id===id);
   if(!t) return;
-  if(!confirm('Delete '+t.name+'?')) return;
+  if(!confirm('Delete '+t.name+'? This will also remove them from Forecast.')) return;
   logAudit('deleted','member',t.name,[]);
+  fcResources=fcResources.filter(r=>r.name.toLowerCase().trim()!==t.name.toLowerCase().trim());
   teams=teams.filter(x=>x.id!==id);
   renderAll();
 }
@@ -3285,7 +3290,7 @@ function showSec(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   el(name).classList.add('active');
-  const m={dashboard:0,timeline:1,hierarchy:2,team:3,forecast:4,leave:5,masterdata:6,audit:7};
+  const m={dashboard:0,timeline:1,hierarchy:2,forecast:3,leave:4,masterdata:5,audit:6};
   if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
 }
 
