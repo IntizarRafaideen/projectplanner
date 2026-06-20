@@ -1769,72 +1769,8 @@ function buildForecast(){
     {sl:'Resources',sv:fcResources.length,ss:'In forecast'},
   ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
 
-  // Project & Site milestone timeline mapped to forecast weeks
-  let nb='';
-  if(projects.length && FC_WEEKS.length){
-    // Use same month filter as weekly view
-    const tlMonthFilter=el('fc-week-month')?.value||'all';
-    const tlWeeks = tlMonthFilter==='all' ? FC_WEEKS : FC_WEEKS.filter(w=>w.monthKey===tlMonthFilter);
-    if(tlWeeks.length){
-      const monthGroups=[];
-      tlWeeks.forEach(w=>{
-        const last=monthGroups[monthGroups.length-1];
-        if(last && last.key===w.monthKey) last.count++;
-        else monthGroups.push({key:w.monthKey, label:w.monthLabel+" '"+String(w.key.slice(0,4)).slice(2), count:1});
-      });
-
-      nb+=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:8px">Milestone Timeline — allocate resources based on this</div>`;
-      nb+=`<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;font-size:10px;min-width:${140+tlWeeks.length*52}px">`;
-      // Month header
-      nb+=`<tr><td style="width:140px;min-width:140px;padding:4px 8px;background:var(--s2);border:1px solid var(--b1);font-weight:600;color:var(--t3)">Project / Site</td>`;
-      monthGroups.forEach(mg=>{
-        nb+=`<td colspan="${mg.count}" style="padding:4px;background:var(--teal);color:#fff;text-align:center;font-weight:600;font-size:9px;border:1px solid rgba(255,255,255,.3)">${mg.label}</td>`;
-      });
-      nb+=`</tr>`;
-      // Week sub-header
-      nb+=`<tr><td style="padding:3px 8px;background:var(--s2);border:1px solid var(--b1);font-size:9px;color:var(--t3)"></td>`;
-      tlWeeks.forEach(w=>{
-        const hols=ukHolidaysInWeek(w);
-        nb+=`<td style="padding:2px;text-align:center;background:${hols.length?'var(--rl)':'var(--s2)'};border:1px solid var(--b1);font-size:8px;color:var(--t3);white-space:nowrap;min-width:52px" title="${fmtWeekRange(w)}">${w.label}<br>${fmtWeekRange(w).split(' – ')[0]}</td>`;
-      });
-      nb+=`</tr>`;
-
-      // Rows per project/site
-      projects.forEach(proj=>{
-        const pms=milestones.filter(m=>m.projectId===proj.id);
-        const sites=proj.sites||[];
-        sites.forEach(site=>{
-          const sms=pms.filter(m=>m.site===site);
-          nb+=`<tr><td style="padding:4px 8px;border:1px solid var(--b1);background:var(--sf);white-space:nowrap">
-            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${proj.color};margin-right:4px"></span>
-            <span style="font-weight:600">${proj.name}</span> <span style="color:var(--t3)">/ ${site}</span>
-          </td>`;
-          tlWeeks.forEach(w=>{
-            const weekStart=w.start, weekEnd=w.end;
-            const weekMs=sms.filter(ms=>{
-              if(!ms.start) return false;
-              const msEnd=ms.end||ms.start;
-              return ms.start<=weekEnd && msEnd>=weekStart;
-            });
-            if(weekMs.length){
-              nb+=`<td style="padding:2px;border:1px solid var(--b1);background:${weekMs[0].color}15;vertical-align:top">`;
-              weekMs.forEach(ms=>{
-                nb+=`<div style="font-size:8px;padding:1px 3px;border-radius:3px;background:${ms.color};color:#fff;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px;font-weight:600;cursor:default" title="${ms.name}: ${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' – '+fmtS(ms.end):''}">${ms.name}</div>`;
-              });
-              nb+=`</td>`;
-            } else {
-              nb+=`<td style="padding:2px;border:1px solid var(--b1)"></td>`;
-            }
-          });
-          nb+=`</tr>`;
-        });
-      });
-      nb+=`</table></div>`;
-    }
-  } else if(!projects.length){
-    nb+=`<div style="font-size:12px;color:var(--t3);text-align:center;padding:16px">No projects yet — add a project to see the milestone timeline.</div>`;
-  }
-  el('fc-npm-bar').innerHTML=nb;
+  // Timeline is now embedded in the weekly table — hide the separate panel
+  el('fc-npm-bar').innerHTML='';
 
   // show the month filter only for views that use it
   const wmSelToggle=el('fc-week-month');
@@ -2363,6 +2299,42 @@ function buildFcWeekly(){
     }).join('')}
     <th>Hrs</th>
   </tr></thead><tbody>`;
+
+  // ── Milestone timeline rows (same table, same columns) ──
+  if(projects.length){
+    projects.forEach(proj=>{
+      const pms=milestones.filter(m=>m.projectId===proj.id);
+      const sites=proj.sites||[];
+      sites.forEach(site=>{
+        const sms=pms.filter(m=>m.site===site);
+        h+=`<tr style="background:${proj.color}08">
+          <td class="left" colspan="2" style="padding:3px 10px;font-size:10px;white-space:nowrap;border-bottom:1px solid ${proj.color}33">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${proj.color};margin-right:4px"></span>
+            <span style="font-weight:600;color:${proj.color}">${proj.name}</span>
+            <span style="color:var(--t3)"> / ${site}</span>
+          </td>`;
+        weeks.forEach(w=>{
+          const weekMs=sms.filter(ms=>{
+            if(!ms.start) return false;
+            const msEnd=ms.end||ms.start;
+            return ms.start<=w.end && msEnd>=w.start;
+          });
+          if(weekMs.length){
+            h+=`<td colspan="2" style="padding:1px 2px;border-bottom:1px solid ${proj.color}33;background:${weekMs[0].color}12;vertical-align:top">`;
+            weekMs.forEach(ms=>{
+              h+=`<div style="font-size:7px;padding:1px 2px;border-radius:3px;background:${ms.color};color:#fff;margin-bottom:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;cursor:default;line-height:1.3" title="${ms.name}: ${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' – '+fmtS(ms.end):''}">${ms.name}</div>`;
+            });
+            h+=`</td>`;
+          } else {
+            h+=`<td colspan="2" style="padding:1px;border-bottom:1px solid ${proj.color}33"></td>`;
+          }
+        });
+        h+=`<td style="border-bottom:1px solid ${proj.color}33"></td></tr>`;
+      });
+    });
+    // Separator row
+    h+=`<tr><td colspan="${2+weeks.length*2+1}" style="padding:0;border-bottom:2px solid var(--teal);background:var(--tl);height:4px"></td></tr>`;
+  }
 
   filteredResources.forEach(r=>{
     let pH=0;
