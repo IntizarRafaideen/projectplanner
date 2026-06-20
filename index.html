@@ -575,6 +575,51 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 </div>
 </div>
 
+<!-- BULK ALLOCATION MODAL -->
+<div class="modal-bg" id="modal-bulkalloc" onclick="if(event.target===this)closeModal('bulkalloc')">
+<div class="modal" style="width:640px">
+  <div class="modal-hdr">
+    <div>
+      <h3>Bulk Allocate</h3>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">Set allocation % for multiple resources across a date range in one go</div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('bulkalloc')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="frow">
+      <div class="field"><label>Start week</label><input id="ba-start" type="date"></div>
+      <div class="field"><label>End week</label><input id="ba-end" type="date"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Allocation %</label><input id="ba-pct" type="number" min="0" max="200" step="5" placeholder="e.g. 100" value="100"></div>
+      <div class="field"><label>Project / Site (optional)</label>
+        <select id="ba-project" class="dyn-select" style="width:100%" onchange="updateBaSites()">
+          <option value="">No project (general)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Site (optional)</label>
+      <select id="ba-site" class="dyn-select" style="width:100%">
+        <option value="">No site</option>
+      </select>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="sec-lbl" style="margin:0">Select resources</span>
+        <button class="btn btn-sm" onclick="toggleAllBaResources(true)">Select all</button>
+        <button class="btn btn-sm" onclick="toggleAllBaResources(false)">Deselect all</button>
+      </div>
+      <div id="ba-resources" style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+    <div id="ba-preview" style="margin-top:12px;padding:10px 12px;background:var(--s2);border-radius:var(--r);font-size:12px;color:var(--t2)"></div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('bulkalloc')">Cancel</button>
+    <button class="btn btn-primary" onclick="applyBulkAlloc()">Apply allocation</button>
+  </div>
+</div>
+</div>
+
 <!-- ── MODALS ── -->
 <!-- Project -->
 <div class="modal-bg" id="modal-project" onclick="if(event.target===this)closeModal('project')">
@@ -1851,7 +1896,16 @@ function openWeekAllocModal(resId, weekKey){
   el('fcwk-title').textContent=`${r.name} — ${w.fullLabel}`;
   el('fcwk-sub').textContent=`${fmtWeekRange(w)} · ${w.hours}h available this week`;
   fcWeekRows = fcWeekEntries(r,weekKey).map(e=>({...e}));
-  if(!fcWeekRows.length) fcWeekRows=[{projectId:'',site:'',pct:0}];
+  if(!fcWeekRows.length){
+    // Auto-populate from the team member's project/site assignments
+    const teamMember = teams.find(t=>t.name.toLowerCase().trim()===r.name.toLowerCase().trim());
+    const assigns = teamMember?.assignments?.filter(a=>a.projectId) || [];
+    if(assigns.length){
+      fcWeekRows = assigns.map(a=>({projectId:a.projectId, site:a.site||'', pct:0}));
+    } else {
+      fcWeekRows=[{projectId:'',site:'',pct:0}];
+    }
+  }
   renderFcWeekRows();
   el('modal-fcweek').classList.add('open');
 }
@@ -1887,6 +1941,93 @@ function saveFcWeekAlloc(){
   if(!fcWeekEditRid||!fcWeekEditWkey) return;
   setWeekEntries(fcWeekEditRid, fcWeekEditWkey, fcWeekRows);
   closeModal('fcweek');
+}
+
+// ── BULK ALLOCATION ──────────────────────────────────────────────────────────
+function openBulkAllocModal(){
+  // Default date range: first and last week in current view
+  const monthFilter=el('fc-week-month')?.value||'all';
+  const weeks = monthFilter==='all' ? FC_WEEKS : FC_WEEKS.filter(w=>w.monthKey===monthFilter);
+  if(weeks.length){
+    el('ba-start').value = weeks[0].start;
+    el('ba-end').value = weeks[weeks.length-1].end;
+  }
+  el('ba-pct').value = 100;
+  el('ba-project').innerHTML = '<option value="">No project (general)</option>' +
+    projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+  el('ba-site').innerHTML = '<option value="">No site</option>';
+  renderBaResources();
+  updateBaPreview();
+  el('modal-bulkalloc').classList.add('open');
+}
+
+function updateBaSites(){
+  const projId = el('ba-project').value;
+  const p = projects.find(x=>x.id===projId);
+  el('ba-site').innerHTML = '<option value="">No site</option>' +
+    (p?.sites||[]).map(s=>`<option value="${s}">${s}</option>`).join('');
+}
+
+function renderBaResources(){
+  el('ba-resources').innerHTML = fcResources.map((r,i)=>
+    `<label style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--b1);background:var(--sf)" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background='var(--sf)'">
+      <input type="checkbox" id="ba-res-${i}" checked style="accent-color:var(--teal)">
+      <span style="font-size:12px;font-weight:500;flex:1">${r.name}</span>
+      <span style="font-size:10px;color:var(--t3)">${r.role}</span>
+      <span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span>
+    </label>`
+  ).join('');
+}
+
+function toggleAllBaResources(checked){
+  fcResources.forEach((_,i)=>{ const cb=el('ba-res-'+i); if(cb) cb.checked=checked; });
+  updateBaPreview();
+}
+
+function updateBaPreview(){
+  const start=el('ba-start')?.value, end=el('ba-end')?.value, pct=el('ba-pct')?.value||0;
+  const selected = fcResources.filter((_,i)=>el('ba-res-'+i)?.checked).length;
+  const matchedWeeks = FC_WEEKS.filter(w=>w.start<=end && w.end>=start);
+  el('ba-preview').innerHTML = `<strong>${selected}</strong> resources × <strong>${matchedWeeks.length}</strong> weeks × <strong>${pct}%</strong> allocation`;
+}
+
+function applyBulkAlloc(){
+  const startDate=el('ba-start').value, endDate=el('ba-end').value;
+  const pct=parseFloat(el('ba-pct').value)||0;
+  const projId=el('ba-project').value, site=el('ba-site').value;
+  if(!startDate||!endDate){ alert('Please select start and end dates.'); return; }
+  if(startDate>endDate){ alert('Start date must be before end date.'); return; }
+
+  const matchedWeeks = FC_WEEKS.filter(w=>w.start<=endDate && w.end>=startDate);
+  if(!matchedWeeks.length){ alert('No forecast weeks fall within the selected date range.'); return; }
+
+  const selectedResources = fcResources.filter((_,i)=>el('ba-res-'+i)?.checked);
+  if(!selectedResources.length){ alert('Please select at least one resource.'); return; }
+
+  let count=0;
+  selectedResources.forEach(r=>{
+    matchedWeeks.forEach(w=>{
+      if(!r.weeklyAlloc) r.weeklyAlloc={};
+      if(projId){
+        const existing = fcWeekEntries(r, w.key).filter(e=>!(e.projectId===projId && e.site===site));
+        existing.push({projectId:projId, site:site, pct:pct});
+        r.weeklyAlloc[w.key] = existing.filter(e=>e.pct>0);
+      } else {
+        r.weeklyAlloc[w.key] = pct>0 ? [{projectId:'', site:'', pct:pct}] : [];
+      }
+      count++;
+    });
+  });
+
+  logAudit('edited','forecast','Bulk allocation',[
+    {field:'Resources',to:selectedResources.map(r=>r.name).join(', ')},
+    {field:'Weeks',to:matchedWeeks.length+' weeks ('+fmtWeekRange(matchedWeeks[0])+' → '+fmtWeekRange(matchedWeeks[matchedWeeks.length-1])+')'},
+    {field:'Allocation',to:pct+'%'}
+  ]);
+
+  closeModal('bulkalloc');
+  saveData();
+  buildForecast();
 }
 
 function buildFcSummary(){
@@ -1989,31 +2130,50 @@ function buildFcWeekly(){
   }
   if(!weeks.length){ el('fc-main').innerHTML='<div class="empty" style="padding:40px">No weeks to show — try widening your forecast period.</div>'; return }
 
-  let h=`<div style="padding:10px 16px;background:var(--tl);border-bottom:1px solid var(--b1);font-size:11px;color:var(--teal);display:flex;align-items:center;gap:8px">
-    <span>✎</span><span>Click any <strong>Alloc%</strong> cell to enter the week's effort — split across multiple projects/sites if needed. Cells with a split show a small chip count.</span>
+  let h=`<div style="padding:10px 16px;background:var(--tl);border-bottom:1px solid var(--b1);font-size:11px;color:var(--teal);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span>✎</span><span>Click any <strong>Alloc%</strong> cell to enter the week's effort. 🏖 = public holiday, ⚠ = personal leave.</span>
+    <button class="btn btn-sm" style="margin-left:auto" onclick="openBulkAllocModal()">⚡ Bulk Allocate</button>
   </div>`;
+
+  // Build week header info with dates and holiday/leave counts
+  const weekHdrInfo = weeks.map(w=>{
+    const hols = ukHolidaysInWeek(w);
+    const leaveCount = fcResources.filter(r=>fcLeaveInWeek(r,w).length>0).length;
+    const holBg = hols.length ? 'background:var(--red);color:#fff;' : '';
+    const dateRange = fmtWeekRange(w);
+    return {w, hols, leaveCount, dateRange, holBg};
+  });
+
   h+=`<div class="fc-scroll"><table class="fc-table"><thead>
   <tr>
     <th class="left" rowspan="2" style="min-width:140px">Resource</th>
     <th class="left" rowspan="2">Rgn</th>
-    <th class="left" rowspan="2">£/Hr</th>
-    ${weeks.map(w=>`<th class="month-hdr" colspan="4" title="${fmtWeekRange(w)}">${w.fullLabel}<br><span style="font-weight:400;font-size:9px">${w.hours}h avail</span></th>`).join('')}
-    <th colspan="3" style="background:#1A1917;color:#fff;text-align:center">Period total</th>
+    ${weekHdrInfo.map(wi=>{
+      return `<th class="month-hdr" colspan="2" style="${wi.hols.length?'background:var(--coral);':''}">
+        ${wi.w.fullLabel}<br>
+        <span style="font-weight:400;font-size:8px">${wi.dateRange}</span><br>
+        <span style="font-weight:400;font-size:8px">${wi.w.hours}h avail</span>
+        ${wi.hols.length?`<br><span style="font-size:8px">🏖 ${wi.hols.map(h=>h.name.replace(/ Bank Holiday/,'').replace(/'s Day/,'')).join(', ')}</span>`:''}
+      </th>`;
+    }).join('')}
+    <th style="background:#1A1917;color:#fff;text-align:center">Total Hrs</th>
   </tr>
   <tr>
-    ${weeks.map(()=>`<th>Alloc%</th><th>Hrs</th><th>Cost</th><th>Rev</th>`).join('')}
-    <th>Hrs</th><th>Cost £</th><th>Rev £</th>
+    ${weekHdrInfo.map(wi=>{
+      const leaveBg = wi.leaveCount ? 'background:#FEF3C7;' : '';
+      return `<th style="${leaveBg}">Alloc%</th><th style="${leaveBg}">Hrs</th>`;
+    }).join('')}
+    <th>Hrs</th>
   </tr></thead><tbody>`;
 
   fcResources.forEach(r=>{
-    let pH=0,pC=0,pR=0;
+    let pH=0;
     h+=`<tr>
       <td class="left" style="font-weight:500;font-size:11px">${r.name}</td>
       <td class="left"><span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span></td>
-      <td>£${r.billH}</td>
       ${weeks.map(w=>{
         const c=fcCalcWeek(r,w);
-        pH+=c.hours; pC+=c.cost; pR+=c.revenue;
+        pH+=c.hours;
         const col=c.alloc===0?'var(--t3)':c.alloc>=100?'var(--green)':c.alloc>=75?'var(--tm)':'var(--amber)';
         const entries=fcWeekEntries(r,w.key);
         const splitCount=entries.filter(e=>e.projectId).length;
@@ -2027,25 +2187,21 @@ function buildFcWeekly(){
                   </div>
                   ${splitCount>1?`<span style="position:absolute;top:1px;right:1px;background:var(--purple);color:#fff;font-size:8px;font-weight:700;border-radius:8px;padding:0 4px;line-height:1.4">${splitCount}</span>`:''}
                 </td>
-                <td style="color:${col}">${c.hours||'-'}</td>
-                <td style="color:#993C1D">${c.cost?'£'+fc2(c.cost):'-'}</td>
-                <td style="color:var(--teal)">${c.revenue?'£'+fc2(c.revenue):'-'}</td>`;
+                <td style="color:${col}">${c.hours||'-'}</td>`;
       }).join('')}
       <td style="font-weight:600">${fc1(pH)}</td>
-      <td style="color:#993C1D">£${fc2(pC)}</td>
-      <td style="color:var(--teal)">£${fc2(pR)}</td>
     </tr>`;
   });
 
-  h+=`<tr class="total-row"><td class="left" colspan="3">Weekly totals</td>`;
-  let gH=0,gC=0,gR=0;
+  h+=`<tr class="total-row"><td class="left" colspan="2">Weekly totals</td>`;
+  let gH=0;
   weeks.forEach(w=>{
-    let wH=0,wC=0,wR=0;
-    fcResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours;wC+=c.cost;wR+=c.revenue});
-    gH+=wH;gC+=wC;gR+=wR;
-    h+=`<td style="font-size:11px;text-align:center">—</td><td style="font-size:11px">${fc1(wH)}h</td><td style="color:#993C1D;font-size:11px">£${fc2(wC)}</td><td style="color:var(--teal);font-size:11px">£${fc2(wR)}</td>`;
+    let wH=0;
+    fcResources.forEach(r=>{const c=fcCalcWeek(r,w);wH+=c.hours});
+    gH+=wH;
+    h+=`<td style="font-size:11px;text-align:center">—</td><td style="font-size:11px">${fc1(wH)}h</td>`;
   });
-  h+=`<td>${fc1(gH)}</td><td style="color:#993C1D">£${fc2(gC)}</td><td style="color:var(--teal)">£${fc2(gR)}</td></tr></tbody></table></div>`;
+  h+=`<td>${fc1(gH)}</td></tr></tbody></table></div>`;
 
   h+=`<div style="padding:16px 18px;border-top:1px solid var(--b1)">
     <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:10px">Weekly net profit margin</div>
@@ -3133,19 +3289,23 @@ function loadData(){
     else { seedData(); seedForecast(); syncForecastToTeam(); }
   }catch(e){ console.warn('localStorage load failed:',e); seedData(); seedForecast(); syncForecastToTeam(); }
 
-  // Then try Firestore (async, overrides localStorage if newer)
-  DOC_REF.get().then(doc=>{
+  // Realtime sync — listen for Firestore changes (including manual edits in console)
+  DOC_REF.onSnapshot(doc=>{
     firebaseReady=true;
     if(doc.exists){
-      console.log('Loaded from Firestore');
-      applyState(doc.data());
-      renderAll();
+      const source = doc.metadata.hasPendingWrites ? 'local' : 'server';
+      if(source === 'server'){
+        console.log('Firestore update received from server');
+        applyState(doc.data());
+        try{ localStorage.setItem(SK,JSON.stringify(getStateObj())) }catch(e){}
+        renderAll();
+      }
     } else {
       console.log('No Firestore data yet, uploading current state');
       DOC_REF.set(getStateObj()).catch(e=>console.warn('Initial Firestore save failed:',e));
     }
-  }).catch(e=>{
-    console.warn('Firestore load failed, using localStorage:',e);
+  }, e=>{
+    console.warn('Firestore listener failed, using localStorage:',e);
   });
 }
 
