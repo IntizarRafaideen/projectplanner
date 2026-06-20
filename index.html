@@ -237,10 +237,55 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   .detail-grid .full{grid-column:1}
   .frow{grid-template-columns:1fr}
 }
+/* ── AUTH ── */
+.auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
+.auth-card{background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);box-shadow:var(--shm);width:400px;max-width:94vw;padding:36px 32px}
+.auth-card .logo{justify-content:center;margin-bottom:24px;font-size:18px}
+.auth-card .logo-icon{width:36px;height:36px;font-size:15px}
+.auth-card h2{font-family:'Inter Tight',sans-serif;font-size:18px;font-weight:700;text-align:center;margin-bottom:4px}
+.auth-card .auth-sub{font-size:12px;color:var(--t3);text-align:center;margin-bottom:20px}
+.auth-card .field{margin-bottom:12px}
+.auth-card .field label{display:block;font-size:10px;font-weight:600;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.auth-card .field input{width:100%;padding:9px 11px;border:1px solid var(--b2);border-radius:var(--rsm);font-family:'Inter',sans-serif;font-size:13px;color:var(--tx);background:var(--sf);outline:none}
+.auth-card .field input:focus{border-color:var(--teal)}
+.auth-btn{width:100%;padding:10px;border-radius:var(--rsm);border:none;background:var(--teal);color:#fff;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;margin-top:8px}
+.auth-btn:hover{background:#0d5c47}
+.auth-toggle{text-align:center;margin-top:16px;font-size:12px;color:var(--t3)}
+.auth-toggle a{color:var(--teal);cursor:pointer;font-weight:600;text-decoration:none}
+.auth-toggle a:hover{text-decoration:underline}
+.auth-error{background:var(--rl);color:var(--red);border-radius:var(--rsm);padding:8px 12px;font-size:12px;margin-bottom:12px;display:none}
+.user-badge{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);padding:4px 10px;background:var(--s2);border-radius:20px;cursor:pointer;border:1px solid var(--b1)}
+.user-badge:hover{background:var(--b1)}
+.user-menu{position:absolute;top:50px;right:20px;background:var(--sf);border:1px solid var(--b1);border-radius:var(--r);box-shadow:var(--shm);z-index:200;min-width:180px;display:none}
+.user-menu.open{display:block}
+.user-menu-item{padding:9px 14px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--tx);border-bottom:1px solid var(--b1)}
+.user-menu-item:last-child{border-bottom:none}
+.user-menu-item:hover{background:var(--s2)}
+.role-badge{font-size:9px;padding:1px 6px;border-radius:10px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.role-badge.superadmin{background:#EEEDFE;color:#534AB7}
+.role-badge.manager{background:var(--tl);color:var(--teal)}
+.role-badge.viewer{background:var(--s2);color:var(--t3)}
 </style>
 </head>
 <body>
 
+<!-- AUTH SCREEN -->
+<div id="auth-screen" class="auth-screen">
+  <div class="auth-card">
+    <div class="logo" style="display:flex"><span class="logo-icon">nX</span>notXL</div>
+    <h2 id="auth-title">Sign in</h2>
+    <div class="auth-sub" id="auth-sub">Enter your credentials to continue</div>
+    <div class="auth-error" id="auth-error"></div>
+    <div class="field"><label>Email</label><input id="auth-email" type="email" placeholder="you@company.com"></div>
+    <div class="field"><label>Password</label><input id="auth-pass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')authAction()"></div>
+    <div class="field" id="auth-name-field" style="display:none"><label>Full name</label><input id="auth-name" placeholder="Your name"></div>
+    <button class="auth-btn" onclick="authAction()" id="auth-btn">Sign in</button>
+    <div class="auth-toggle" id="auth-toggle">Don't have an account? <a onclick="toggleAuthMode()">Sign up</a></div>
+  </div>
+</div>
+
+<!-- APP (hidden until logged in) -->
+<div id="app-wrap" style="display:none">
 <nav>
   <div class="nav-inner">
     <a class="logo" href="#"><span class="logo-icon">nX</span>notXL</a>
@@ -260,6 +305,22 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="btn" onclick="openModal('member')">+ Member</button>
       <button class="btn" onclick="openModal('project')">+ Project</button>
       <button class="btn btn-primary" onclick="openModal('milestone')">+ Milestone</button>
+      <div style="position:relative">
+        <div class="user-badge" onclick="toggleUserMenu()" id="user-badge">
+          <span id="user-avatar" class="av" style="background:var(--teal);color:#fff;width:22px;height:22px;font-size:9px">?</span>
+          <span id="user-name-display" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">User</span>
+          <span id="user-role-badge" class="role-badge viewer">viewer</span>
+        </div>
+        <div class="user-menu" id="user-menu">
+          <div class="user-menu-item" style="flex-direction:column;align-items:flex-start;gap:2px;cursor:default">
+            <span style="font-weight:600" id="um-name">User</span>
+            <span style="font-size:11px;color:var(--t3)" id="um-email">email</span>
+          </div>
+          <div class="user-menu-item" onclick="showSec('users');toggleUserMenu()" id="um-admin-link" style="display:none">👥 Manage Users</div>
+          <div class="user-menu-item" onclick="openChangePasswordModal()">🔒 Change Password</div>
+          <div class="user-menu-item" onclick="logoutUser()" style="color:var(--red)">↩ Sign out</div>
+        </div>
+      </div>
     </div>
   </div>
 </nav>
@@ -434,7 +495,59 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   </div>
 </div>
 
+<!-- USER MANAGEMENT (Super Admin only) -->
+<div id="users" class="section">
+  <div class="page-hdr">
+    <h1>User Management</h1>
+    <span style="font-size:12px;color:var(--t3);margin-right:auto">Super Admin only — manage app users and roles</span>
+    <button class="btn btn-primary" onclick="openAddUserModal()">+ Add User</button>
+  </div>
+  <div class="stats-row" id="users-stats"></div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="users-table-wrap"></div>
+</div>
+
 </main>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div class="modal-bg" id="modal-changepass" onclick="if(event.target===this)closeModal('changepass')">
+<div class="modal" style="width:400px">
+  <div class="modal-hdr"><h3>Change Password</h3><button class="btn-icon" onclick="closeModal('changepass')">✕</button></div>
+  <div class="modal-body">
+    <div class="field"><label>Current password</label><input id="cp-old" type="password"></div>
+    <div class="field"><label>New password</label><input id="cp-new" type="password"></div>
+    <div class="field"><label>Confirm new password</label><input id="cp-confirm" type="password"></div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('changepass')">Cancel</button>
+    <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+  </div>
+</div>
+</div>
+
+<!-- ADD/EDIT USER MODAL -->
+<div class="modal-bg" id="modal-adduser" onclick="if(event.target===this)closeModal('adduser')">
+<div class="modal" style="width:440px">
+  <div class="modal-hdr"><h3 id="adduser-title">Add User</h3><button class="btn-icon" onclick="closeModal('adduser')">✕</button></div>
+  <div class="modal-body">
+    <div class="field"><label>Full name *</label><input id="au-name" placeholder="John Smith"></div>
+    <div class="field"><label>Email *</label><input id="au-email" type="email" placeholder="john@company.com"></div>
+    <div class="field" id="au-pass-field"><label>Password *</label><input id="au-pass" type="password" placeholder="Min 6 characters"></div>
+    <div class="field"><label>Role *</label>
+      <select id="au-role" style="width:100%;padding:7px 9px;border:1px solid var(--b2);border-radius:var(--rsm);font-family:Inter,sans-serif;font-size:13px;color:var(--tx);background:var(--sf);outline:none">
+        <option value="viewer">Viewer — read-only access</option>
+        <option value="manager">Manager — can edit data</option>
+        <option value="superadmin">Super Admin — full access + user management</option>
+      </select>
+    </div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('adduser')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveUser()">Save User</button>
+  </div>
+</div>
+</div>
+
+</div><!-- /app-wrap -->
 
 <!-- LEAVE PLAN MODAL -->
 <div class="modal-bg" id="modal-leaveplan" onclick="if(event.target===this)closeModal('leaveplan')">
@@ -3406,11 +3519,13 @@ function saveHolidays(){
 }
 
 function showSec(name){
+  if(name==='users' && currentUser?.role!=='superadmin'){ alert('Only Super Admins can manage users.'); return; }
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   el(name).classList.add('active');
   const m={dashboard:0,timeline:1,hierarchy:2,forecast:3,leave:4,masterdata:5,audit:6};
   if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
+  if(name==='users') buildUsersTable();
 }
 
 // BANNERS
@@ -3550,14 +3665,268 @@ function renderAll(skipSave){
   if(!skipSave){ try{ saveData(); } catch(e){} }
 }
 
-// INIT
-try{
-  loadData();
-  renderAll();
-} catch(e){
-  document.getElementById('dash-stats').innerHTML=`<div style="padding:20px;color:var(--red);font-size:13px;grid-column:1/-1">⚠ Startup error: ${e.message}. Try clicking ↺ Reset.</div>`;
-  console.error('Init failed:',e);
+// ─── AUTH & USER MANAGEMENT ─────────────────────────────────────────────────
+const USERS_COL = db.collection('users');
+let currentUser = null;
+let authMode = 'login'; // 'login' | 'signup'
+let editingUserId = null;
+
+function simpleHash(str){
+  let hash=0;
+  for(let i=0;i<str.length;i++){hash=((hash<<5)-hash)+str.charCodeAt(i);hash|=0}
+  return 'h_'+Math.abs(hash).toString(36);
 }
+
+function toggleAuthMode(){
+  authMode = authMode==='login' ? 'signup' : 'login';
+  el('auth-title').textContent = authMode==='login' ? 'Sign in' : 'Create account';
+  el('auth-sub').textContent = authMode==='login' ? 'Enter your credentials to continue' : 'Set up your notXL account';
+  el('auth-btn').textContent = authMode==='login' ? 'Sign in' : 'Create account';
+  el('auth-name-field').style.display = authMode==='signup' ? 'block' : 'none';
+  el('auth-toggle').innerHTML = authMode==='login'
+    ? 'Don\'t have an account? <a onclick="toggleAuthMode()">Sign up</a>'
+    : 'Already have an account? <a onclick="toggleAuthMode()">Sign in</a>';
+  el('auth-error').style.display='none';
+}
+
+function showAuthError(msg){
+  const e=el('auth-error'); e.textContent=msg; e.style.display='block';
+}
+
+async function authAction(){
+  const email=(el('auth-email').value||'').trim().toLowerCase();
+  const pass=el('auth-pass').value;
+  if(!email||!pass){ showAuthError('Please enter email and password.'); return; }
+  if(pass.length<6){ showAuthError('Password must be at least 6 characters.'); return; }
+
+  const passHash=simpleHash(pass);
+
+  if(authMode==='signup'){
+    const name=(el('auth-name').value||'').trim();
+    if(!name){ showAuthError('Please enter your name.'); return; }
+    // Check if email already exists
+    const existing=await USERS_COL.where('email','==',email).get();
+    if(!existing.empty){ showAuthError('An account with this email already exists.'); return; }
+    // Check if this is the first user — make them super admin
+    const allUsers=await USERS_COL.get();
+    const role=allUsers.empty ? 'superadmin' : 'viewer';
+    const userDoc={name,email,passHash,role,createdAt:new Date().toISOString()};
+    const ref=await USERS_COL.add(userDoc);
+    currentUser={id:ref.id,...userDoc};
+    localStorage.setItem('notxl_session',JSON.stringify({id:ref.id,email}));
+    if(role==='superadmin') alert('Welcome! You are the first user — you\'ve been assigned Super Admin role.');
+    enterApp();
+  } else {
+    // Login
+    const snap=await USERS_COL.where('email','==',email).get();
+    if(snap.empty){ showAuthError('No account found with this email.'); return; }
+    const doc=snap.docs[0];
+    const userData=doc.data();
+    if(userData.passHash!==passHash){ showAuthError('Incorrect password.'); return; }
+    currentUser={id:doc.id,...userData};
+    localStorage.setItem('notxl_session',JSON.stringify({id:doc.id,email}));
+    enterApp();
+  }
+}
+
+function enterApp(){
+  el('auth-screen').style.display='none';
+  el('app-wrap').style.display='block';
+  updateUserUI();
+  loadData();
+  renderAll(true);
+}
+
+function updateUserUI(){
+  if(!currentUser) return;
+  el('user-avatar').textContent=ini(currentUser.name);
+  el('user-name-display').textContent=currentUser.name;
+  const rb=el('user-role-badge');
+  rb.textContent=currentUser.role==='superadmin'?'Super Admin':currentUser.role==='manager'?'Manager':'Viewer';
+  rb.className='role-badge '+currentUser.role;
+  el('um-name').textContent=currentUser.name;
+  el('um-email').textContent=currentUser.email;
+  el('um-admin-link').style.display=currentUser.role==='superadmin'?'flex':'none';
+  // Hide edit controls for viewers
+  if(currentUser.role==='viewer'){
+    document.querySelectorAll('.btn-primary,.btn-danger,.fc-edit-btn,.editable,.add-dyn,.add-row').forEach(e=>{
+      e.style.pointerEvents='none'; e.style.opacity='0.4';
+    });
+  }
+}
+
+function toggleUserMenu(){
+  el('user-menu').classList.toggle('open');
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#user-badge')&&!e.target.closest('#user-menu')) el('user-menu')?.classList.remove('open');
+});
+
+function logoutUser(){
+  currentUser=null;
+  localStorage.removeItem('notxl_session');
+  el('app-wrap').style.display='none';
+  el('auth-screen').style.display='flex';
+  el('auth-email').value=''; el('auth-pass').value=''; el('auth-name').value='';
+  el('auth-error').style.display='none';
+}
+
+function openChangePasswordModal(){
+  toggleUserMenu();
+  el('cp-old').value=''; el('cp-new').value=''; el('cp-confirm').value='';
+  el('modal-changepass').classList.add('open');
+}
+
+async function changePassword(){
+  const oldPass=el('cp-old').value, newPass=el('cp-new').value, confirm=el('cp-confirm').value;
+  if(!oldPass||!newPass){ alert('Please fill in all fields.'); return; }
+  if(newPass.length<6){ alert('New password must be at least 6 characters.'); return; }
+  if(newPass!==confirm){ alert('New passwords do not match.'); return; }
+  if(simpleHash(oldPass)!==currentUser.passHash){ alert('Current password is incorrect.'); return; }
+  const newHash=simpleHash(newPass);
+  await USERS_COL.doc(currentUser.id).update({passHash:newHash});
+  currentUser.passHash=newHash;
+  closeModal('changepass');
+  alert('Password updated successfully.');
+}
+
+// ── USER MANAGEMENT (Super Admin) ───────────────────────────────────────────
+function openAddUserModal(editId){
+  editingUserId=editId||null;
+  el('adduser-title').textContent=editId?'Edit User':'Add User';
+  el('au-name').value=''; el('au-email').value=''; el('au-pass').value=''; el('au-role').value='viewer';
+  el('au-pass-field').style.display=editId?'none':'block';
+  if(editId){
+    USERS_COL.doc(editId).get().then(doc=>{
+      if(doc.exists){
+        const u=doc.data();
+        el('au-name').value=u.name||'';
+        el('au-email').value=u.email||'';
+        el('au-role').value=u.role||'viewer';
+      }
+    });
+  }
+  el('modal-adduser').classList.add('open');
+}
+
+async function saveUser(){
+  const name=(el('au-name').value||'').trim();
+  const email=(el('au-email').value||'').trim().toLowerCase();
+  const role=el('au-role').value;
+  if(!name||!email){ alert('Name and email are required.'); return; }
+
+  if(editingUserId){
+    await USERS_COL.doc(editingUserId).update({name,email,role});
+    logAudit('edited','user',name,[{field:'Role',to:role}]);
+  } else {
+    const pass=el('au-pass').value;
+    if(!pass||pass.length<6){ alert('Password must be at least 6 characters.'); return; }
+    const existing=await USERS_COL.where('email','==',email).get();
+    if(!existing.empty){ alert('A user with this email already exists.'); return; }
+    await USERS_COL.add({name,email,passHash:simpleHash(pass),role,createdAt:new Date().toISOString()});
+    logAudit('created','user',name,[{field:'Email',to:email},{field:'Role',to:role}]);
+  }
+  closeModal('adduser');
+  buildUsersTable();
+}
+
+async function deleteUser(userId){
+  if(userId===currentUser.id){ alert('You cannot delete your own account.'); return; }
+  const doc=await USERS_COL.doc(userId).get();
+  if(!doc.exists) return;
+  const name=doc.data().name;
+  if(!confirm('Delete user "'+name+'"? This cannot be undone.')) return;
+  await USERS_COL.doc(userId).delete();
+  logAudit('deleted','user',name,[]);
+  buildUsersTable();
+}
+
+async function resetUserPassword(userId){
+  const newPass=prompt('Enter new password for this user (min 6 chars):');
+  if(!newPass||newPass.length<6){ if(newPass) alert('Password must be at least 6 characters.'); return; }
+  await USERS_COL.doc(userId).update({passHash:simpleHash(newPass)});
+  alert('Password reset successfully.');
+}
+
+async function buildUsersTable(){
+  const wrap=el('users-table-wrap');
+  const stats=el('users-stats');
+  if(!wrap) return;
+
+  try{
+    const snap=await USERS_COL.get();
+    const users=snap.docs.map(d=>({id:d.id,...d.data()}));
+
+    const superCount=users.filter(u=>u.role==='superadmin').length;
+    const mgrCount=users.filter(u=>u.role==='manager').length;
+    const viewCount=users.filter(u=>u.role==='viewer').length;
+
+    stats.innerHTML=[
+      {sl:'Total users',sv:users.length,ss:'Registered accounts'},
+      {sl:'Super Admins',sv:superCount,ss:'Full access',col:'#534AB7'},
+      {sl:'Managers',sv:mgrCount,ss:'Can edit data',col:'var(--teal)'},
+      {sl:'Viewers',sv:viewCount,ss:'Read-only',col:'var(--t3)'},
+    ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?' style="color:'+s.col+'"':''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
+
+    let h=`<div class="fc-scroll"><table class="fc-table"><thead><tr>
+      <th class="left" style="min-width:160px">Name</th>
+      <th class="left" style="min-width:180px">Email</th>
+      <th style="width:120px">Role</th>
+      <th class="left" style="width:140px">Created</th>
+      <th style="width:120px">Actions</th>
+    </tr></thead><tbody>`;
+
+    users.sort((a,b)=>{
+      const order={superadmin:0,manager:1,viewer:2};
+      return (order[a.role]||9)-(order[b.role]||9);
+    }).forEach(u=>{
+      const isMe=u.id===currentUser.id;
+      const created=u.createdAt?new Date(u.createdAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—';
+      h+=`<tr${isMe?' style="background:var(--tl)"':''}>
+        <td class="left" style="font-weight:500">${u.name}${isMe?' <span style="font-size:9px;color:var(--teal)">(you)</span>':''}</td>
+        <td class="left" style="color:var(--t2)">${u.email}</td>
+        <td style="text-align:center"><span class="role-badge ${u.role}">${u.role==='superadmin'?'Super Admin':u.role==='manager'?'Manager':'Viewer'}</span></td>
+        <td class="left" style="color:var(--t3);font-size:11px">${created}</td>
+        <td style="text-align:center">
+          <button class="fc-edit-btn" onclick="openAddUserModal('${u.id}')" title="Edit">✎</button>
+          <button class="fc-edit-btn" onclick="resetUserPassword('${u.id}')" title="Reset password">🔒</button>
+          ${!isMe?`<button class="fc-edit-btn" onclick="deleteUser('${u.id}')" title="Delete" style="color:var(--red)">🗑</button>`:''}
+        </td>
+      </tr>`;
+    });
+
+    h+=`</tbody></table></div>`;
+    wrap.innerHTML=h;
+  }catch(e){
+    wrap.innerHTML=`<div class="empty" style="padding:40px">Failed to load users: ${e.message}</div>`;
+  }
+}
+
+// ── AUTO-LOGIN CHECK ────────────────────────────────────────────────────────
+async function checkSession(){
+  const session=localStorage.getItem('notxl_session');
+  if(session){
+    try{
+      const s=JSON.parse(session);
+      const doc=await USERS_COL.doc(s.id).get();
+      if(doc.exists){
+        currentUser={id:doc.id,...doc.data()};
+        enterApp();
+        return;
+      }
+    }catch(e){ console.warn('Session check failed:',e); }
+    localStorage.removeItem('notxl_session');
+  }
+  // Show login screen
+  el('auth-screen').style.display='flex';
+  el('app-wrap').style.display='none';
+}
+
+// Update showSec to include users
+const _origShowSec = showSec;
+
+// INIT
+checkSession();
 </script>
 </body>
 </html>
