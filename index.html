@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Project Planner</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <! -- and end with -->
 <style>
  
@@ -213,6 +215,22 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 .fc-edit-btn:hover{color:var(--teal);background:var(--tl)}
 .empty{text-align:center;padding:40px 20px;color:var(--t3);font-size:13px}
 .tooltip{position:fixed;background:var(--tx);color:#fff;font-size:11px;padding:4px 8px;border-radius:5px;pointer-events:none;z-index:500;white-space:nowrap;transform:translate(-50%,-130%);display:none}
+/* ── AUDIT LOG ── */
+.audit-table{width:100%;border-collapse:collapse;font-size:12px}
+.audit-table th{background:var(--s2);padding:8px 12px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--t3);border-bottom:1px solid var(--b1);text-align:left;white-space:nowrap}
+.audit-table td{padding:9px 12px;border-bottom:1px solid var(--b1);vertical-align:top}
+.audit-table tr:last-child td{border-bottom:none}
+.audit-table tr:hover td{background:var(--s2)}
+.audit-action{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.audit-action.created{background:#EAF3DE;color:#3B6D11}
+.audit-action.edited{background:#E6F1FB;color:#185FA5}
+.audit-action.deleted{background:#FCEBEB;color:#E24B4A}
+.audit-type{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--s2);color:var(--t2);font-weight:500;white-space:nowrap}
+.audit-changes{font-size:11px;color:var(--t2);line-height:1.5}
+.audit-changes .field-name{font-weight:600;color:var(--tx)}
+.audit-changes .old-val{text-decoration:line-through;color:var(--red);background:#FCEBEB;padding:0 3px;border-radius:2px}
+.audit-changes .new-val{color:var(--green);background:#EAF3DE;padding:0 3px;border-radius:2px}
+
 @media(max-width:680px){
   main{padding:12px}
   .detail-grid{grid-template-columns:1fr}
@@ -233,6 +251,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="ntab" onclick="showSec('team')">Team</button>
       <button class="ntab" onclick="showSec('forecast')">Forecast</button>
       <button class="ntab" onclick="showSec('leave')">Leave</button>
+      <button class="ntab" onclick="showSec('audit')">Audit</button>
     </div>
     <div class="nav-right">
       <button class="btn" onclick="triggerReset()">↺ Reset</button>
@@ -320,7 +339,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
     <input id="tf-search" placeholder="Search name…" oninput="buildTeam()" class="dyn-input" style="max-width:160px">
   </div>
   <div class="stats-row" id="team-stats"></div>
-  <div class="mem-grid" id="team-grid"></div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="team-table-wrap"></div>
 </div>
 
 <!-- LEAVE PLAN -->
@@ -328,6 +347,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   <div class="page-hdr">
     <h1>Leave Plan</h1>
     <span style="font-size:12px;color:var(--t3);margin-right:auto">UK public holidays auto-populated · click ✎ on any resource to add personal leave</span>
+    <button class="btn" onclick="openModal('holidays')">✎ Edit Public Holidays</button>
     <div class="vsw-group">
       <button class="vsw active" id="lv-all" onclick="setLeaveView('all')">All leave</button>
       <button class="vsw" id="lv-holidays" onclick="setLeaveView('holidays')">Public holidays only</button>
@@ -343,6 +363,40 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   </div>
   <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="leave-body">
     <div class="empty" style="padding:40px">Loading leave calendar…</div>
+  </div>
+</div>
+
+<!-- AUDIT LOG -->
+<div id="audit" class="section">
+  <div class="page-hdr">
+    <h1>Audit Log</h1>
+    <span style="font-size:12px;color:var(--t3);margin-right:auto">All changes tracked automatically</span>
+    <button class="btn" onclick="exportAuditLog()">⬇ Export CSV</button>
+    <button class="btn btn-danger" onclick="clearAuditLog()">Clear log</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:11px;color:var(--t3);font-weight:500">Filter:</span>
+    <select id="af-action" onchange="buildAuditLog()" class="dyn-select">
+      <option value="">All actions</option>
+      <option value="created">Created</option>
+      <option value="edited">Edited</option>
+      <option value="deleted">Deleted</option>
+    </select>
+    <select id="af-type" onchange="buildAuditLog()" class="dyn-select">
+      <option value="">All types</option>
+      <option value="project">Project</option>
+      <option value="milestone">Milestone</option>
+      <option value="member">Team member</option>
+      <option value="forecast">Forecast resource</option>
+      <option value="task">Task</option>
+      <option value="agenda">Agenda item</option>
+      <option value="leave">Leave plan</option>
+    </select>
+    <input id="af-search" placeholder="Search…" oninput="buildAuditLog()" class="dyn-input" style="max-width:180px">
+  </div>
+  <div class="stats-row" id="audit-stats"></div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="audit-body">
+    <div class="empty" style="padding:40px">No changes recorded yet.</div>
   </div>
 </div>
 
@@ -596,9 +650,53 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 </div>
 </div>
 
+<!-- PUBLIC HOLIDAYS MODAL -->
+<div class="modal-bg" id="modal-holidays" onclick="if(event.target===this)closeModal('holidays')">
+<div class="modal" style="width:620px">
+  <div class="modal-hdr">
+    <div>
+      <h3>Edit Public Holidays</h3>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">Add, edit, or remove public holidays. Changes affect the timeline, forecast, and leave views.</div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('holidays')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+      <select id="hol-year-filter" onchange="renderHolidayRows()" class="dyn-select">
+        <option value="">All years</option>
+      </select>
+      <button class="btn btn-sm" onclick="addDefaultHolidaysForYear()" style="margin-left:auto">+ Add UK defaults for year</button>
+    </div>
+    <div id="hol-rows" style="max-height:400px;overflow-y:auto"></div>
+    <button class="add-dyn" onclick="addHolidayRow()">+ Add holiday</button>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('holidays')">Cancel</button>
+    <button class="btn btn-primary" onclick="saveHolidays()">Save holidays</button>
+  </div>
+</div>
+</div>
+
 <div class="tooltip" id="tip"></div>
 
 <script>
+// ─── FIREBASE INIT ──────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyD8nxCUbPdAYVGx1wPiY1vnl6zUbF6VZ14",
+  authDomain: "project-planner-7c293.firebaseapp.com",
+  projectId: "project-planner-7c293",
+  storageBucket: "project-planner-7c293.firebasestorage.app",
+  messagingSenderId: "585617628535",
+  appId: "1:585617628535:web:a13a83b7e2781310b45572",
+  measurementId: "G-8VHH9Q3J9T"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const DOC_REF = db.collection('appData').doc('main');
+let firebaseReady = false;
+let savePending = false;
+let saveTimer = null;
+
 // ─── PALETTE ─────────────────────────────────────────────────────────────────
 const PAL = [
   {c:'#534AB7',l:'#EEEDFE'},{c:'#1D9E75',l:'#E1F5EE'},{c:'#185FA5',l:'#E6F1FB'},
@@ -984,7 +1082,7 @@ function editAg(msId,i,field,val){ const ms=milestones.find(m=>m.id===msId); if(
 function delAg(msId,i){ const ms=milestones.find(m=>m.id===msId); ms.agenda.splice(i,1); rerender(msId) }
 function addAg(msId){ const ms=milestones.find(m=>m.id===msId); ms.agenda.push({id:uid(),date:ms.start||'',time:'09:00',title:'',who:'',notes:''}); rerender(msId) }
 
-function toggleTask(msId,i){ const ms=milestones.find(m=>m.id===msId); ms.tasks[i].done=!ms.tasks[i].done; recalc(ms); rerender(msId); buildDashboard() }
+function toggleTask(msId,i){ const ms=milestones.find(m=>m.id===msId); ms.tasks[i].done=!ms.tasks[i].done; logAudit('edited','task',ms.tasks[i].label,[{field:'Status',from:ms.tasks[i].done?'Incomplete':'Complete',to:ms.tasks[i].done?'Complete':'Incomplete'}]); recalc(ms); rerender(msId); buildDashboard() }
 function delTask(msId,i){ const ms=milestones.find(m=>m.id===msId); ms.tasks.splice(i,1); recalc(ms); rerender(msId); buildDashboard() }
 function addTask(msId){
   const cont=document.querySelector(`[data-tf="${msId}"]`); if(!cont)return;
@@ -1002,13 +1100,13 @@ function rerender(msId){ buildHierarchy(); buildDashboard(); buildGantt(); build
 
 // ─── DELETE ACTIONS ──────────────────────────────────────────────────────────
 function showDelProj(id){ document.querySelectorAll('[id^="dp-"],[id^="ds-"],[id^="dm-"]').forEach(e=>e.style.display='none'); el('dp-'+id).style.display='flex' }
-function confirmDelProj(id){ projects=projects.filter(p=>p.id!==id); milestones=milestones.filter(m=>m.projectId!==id); delete expProj[id]; renderAll() }
+function confirmDelProj(id){ const p=projects.find(x=>x.id===id); if(p) logAudit('deleted','project',p.name,[]); projects=projects.filter(p=>p.id!==id); milestones=milestones.filter(m=>m.projectId!==id); delete expProj[id]; renderAll() }
 function showDelSite(projId,site){ document.querySelectorAll('[id^="dp-"],[id^="ds-"],[id^="dm-"]').forEach(e=>e.style.display='none'); el('ds-'+projId+'-'+site.replace(/\s+/g,'_')).style.display='flex' }
-function confirmDelSite(projId,site){ const p=projects.find(x=>x.id===projId); if(p)p.sites=p.sites.filter(s=>s!==site); milestones=milestones.filter(m=>!(m.projectId===projId&&m.site===site)); delete expSite[projId+'_'+site]; renderAll() }
+function confirmDelSite(projId,site){ const p=projects.find(x=>x.id===projId); if(p){ logAudit('deleted','project',p.name+' / '+site,[{field:'Site removed',from:site,to:''}]); p.sites=p.sites.filter(s=>s!==site); } milestones=milestones.filter(m=>!(m.projectId===projId&&m.site===site)); delete expSite[projId+'_'+site]; renderAll() }
 function showDelMs(id){ document.querySelectorAll('[id^="dp-"],[id^="ds-"],[id^="dm-"]').forEach(e=>e.style.display='none'); el('dm-'+id).style.display='flex' }
-function confirmDelMs(id){ milestones=milestones.filter(m=>m.id!==id); if(expMs===id)expMs=null; renderAll() }
+function confirmDelMs(id){ const ms=milestones.find(m=>m.id===id); if(ms) logAudit('deleted','milestone',ms.name,[]); milestones=milestones.filter(m=>m.id!==id); if(expMs===id)expMs=null; renderAll() }
 function showDelMem(id){ document.querySelectorAll('[id^="dme-"]').forEach(e=>e.style.display='none'); el('dme-'+id).style.display='flex' }
-function confirmDelMem(id){ teams=teams.filter(t=>t.id!==id); renderAll() }
+function confirmDelMem(id){ const t=teams.find(x=>x.id===id); if(t) logAudit('deleted','member',t.name,[]); teams=teams.filter(t=>t.id!==id); renderAll() }
 
 // ─── TOGGLE ──────────────────────────────────────────────────────────────────
 function toggleProj(id){ expProj[id]=!expProj[id]; buildHierarchy() }
@@ -1016,7 +1114,7 @@ function toggleSite(key){ expSite[key]=!expSite[key]; buildHierarchy() }
 function openMs(id){ expMs=expMs===id?null:id; buildHierarchy() }
 
 // ─── MODALS ──────────────────────────────────────────────────────────────────
-function openModal(type,editId){ if(type==='project')openProjModal(editId); else if(type==='milestone')openMsModal(editId); else if(type==='member')openMemModal(editId) }
+function openModal(type,editId){ if(type==='project')openProjModal(editId); else if(type==='milestone')openMsModal(editId); else if(type==='member')openMemModal(editId); else if(type==='holidays')openHolidaysModal() }
 function closeModal(type){ el('modal-'+type).classList.remove('open') }
 
 // SITE FIELDS
@@ -1045,13 +1143,17 @@ function saveProject(){
   const name=el('p-name').value.trim(); if(!name){alert('Please enter a project name.');return}
   const sites=[...document.querySelectorAll('[id^=sf-]')].map(e=>e.value.trim()).filter(Boolean);
   if(!sites.length){alert('Add at least one site.');return}
+  const newData={name,desc:el('p-desc').value,start:el('p-start').value,end:el('p-end').value,sites};
   if(eProjId){
     const p=projects.find(x=>x.id===eProjId);
+    const changes=diffObj(p,newData,[{key:'name',label:'Name'},{key:'desc',label:'Description'},{key:'start',label:'Start date'},{key:'end',label:'End date'},{key:'sites',label:'Sites'}]);
     sites.forEach(s=>{ if(!(eProjId+'_'+s in expSite)) expSite[eProjId+'_'+s]=true });
-    Object.assign(p,{name,desc:el('p-desc').value,start:el('p-start').value,end:el('p-end').value,color:selProjCol.c,colorLight:selProjCol.l,sites});
+    Object.assign(p,{name,desc:newData.desc,start:newData.start,end:newData.end,color:selProjCol.c,colorLight:selProjCol.l,sites});
+    if(changes.length) logAudit('edited','project',name,changes);
   } else {
     const nid=uid(); expProj[nid]=true; sites.forEach(s=>expSite[nid+'_'+s]=true);
-    projects.push({id:nid,name,desc:el('p-desc').value,start:el('p-start').value,end:el('p-end').value,color:selProjCol.c,colorLight:selProjCol.l,sites});
+    projects.push({id:nid,name,desc:newData.desc,start:newData.start,end:newData.end,color:selProjCol.c,colorLight:selProjCol.l,sites});
+    logAudit('created','project',name,[{field:'Name',to:name},{field:'Start date',to:newData.start},{field:'End date',to:newData.end},{field:'Sites',to:sites.join(', ')}]);
   }
   closeModal('project'); renderAll();
 }
@@ -1113,11 +1215,15 @@ function saveMilestone(){
   const projId=el('ms-proj').value; if(!projId){alert('Please select a project.');return}
   const site=el('ms-site').value; const deps=el('ms-deps').value.split(',').map(s=>s.trim()).filter(Boolean);
   const teamIds=getMsTeamIds();
+  const msNew={name,projectId:projId,site,start:el('ms-start').value,end:el('ms-end').value,owner:el('ms-owner').value,deps,teamIds};
   if(eMsId){
     const ms=milestones.find(m=>m.id===eMsId);
-    Object.assign(ms,{name,projectId:projId,site,start:el('ms-start').value,end:el('ms-end').value,owner:el('ms-owner').value,color:selMsCol.c,colorLight:selMsCol.l,deps,teamIds});
+    const changes=diffObj(ms,msNew,[{key:'name',label:'Name'},{key:'site',label:'Site'},{key:'start',label:'Start date'},{key:'end',label:'End date'},{key:'owner',label:'Owner'},{key:'deps',label:'Dependencies'}]);
+    Object.assign(ms,{name,projectId:projId,site,start:msNew.start,end:msNew.end,owner:msNew.owner,color:selMsCol.c,colorLight:selMsCol.l,deps,teamIds});
+    if(changes.length) logAudit('edited','milestone',name,changes);
   } else {
-    milestones.push({id:uid(),projectId:projId,site,name,start:el('ms-start').value,end:el('ms-end').value,owner:el('ms-owner').value,color:selMsCol.c,colorLight:selMsCol.l,progress:0,deps,teamIds,agenda:[],tasks:[]});
+    milestones.push({id:uid(),projectId:projId,site,name,start:msNew.start,end:msNew.end,owner:msNew.owner,color:selMsCol.c,colorLight:selMsCol.l,progress:0,deps,teamIds,agenda:[],tasks:[]});
+    logAudit('created','milestone',name,[{field:'Name',to:name},{field:'Site',to:site},{field:'Start',to:msNew.start},{field:'End',to:msNew.end},{field:'Owner',to:msNew.owner}]);
   }
   closeModal('milestone'); renderAll();
 }
@@ -1167,8 +1273,16 @@ function saveMember(){
   const modules=el('mem-modules').value.split(',').map(s=>s.trim()).filter(Boolean);
   const assignments=memAssigns.filter(a=>a.projectId);
   const leaves=memLeaves.filter(l=>l.start);
-  if(eMemId){ Object.assign(teams.find(t=>t.id===eMemId),{name,role,email,color:selMemCol.c,assignments,modules,costRate,billRate,leaves}) }
-  else teams.push({id:uid(),name,role,email,color:selMemCol.c,assignments,modules,costRate,billRate,leaves});
+  const memNew={name,role,email,modules,costRate,billRate};
+  if(eMemId){
+    const old=teams.find(t=>t.id===eMemId);
+    const changes=diffObj(old,memNew,[{key:'name',label:'Name'},{key:'role',label:'Role'},{key:'email',label:'Email'},{key:'modules',label:'Modules'},{key:'costRate',label:'Cost rate'},{key:'billRate',label:'Bill rate'}]);
+    Object.assign(old,{name,role,email,color:selMemCol.c,assignments,modules,costRate,billRate,leaves});
+    if(changes.length) logAudit('edited','member',name,changes);
+  } else {
+    teams.push({id:uid(),name,role,email,color:selMemCol.c,assignments,modules,costRate,billRate,leaves});
+    logAudit('created','member',name,[{field:'Name',to:name},{field:'Role',to:role},{field:'Email',to:email}]);
+  }
   closeModal('member'); renderAll();
 }
 
@@ -1192,48 +1306,98 @@ function buildTeam(){
   const onLeave=filtered.filter(m=>m.leaves.some(l=>new Date(l.start+'T00:00')<=today&&new Date(l.end+'T00:00')>=today)).length;
   const totalCost=filtered.reduce((s,m)=>s+(m.costRate||0),0);
   const totalBill=filtered.reduce((s,m)=>s+(m.billRate||0),0);
+  const totalMargin=totalBill-totalCost;
   el('team-stats').innerHTML=[
     {sl:'Team members',sv:filtered.length,ss:'Shown'},
     {sl:'Cost rate',sv:'£'+totalCost+'/hr',ss:'Combined hourly cost'},
     {sl:'Bill rate',sv:'£'+totalBill+'/hr',ss:'Combined billing'},
+    {sl:'Margin',sv:'£'+totalMargin+'/hr',ss:'Combined margin',col:totalMargin>=0?'var(--green)':'var(--red)'},
     {sl:'On leave today',sv:onLeave,ss:'Currently unavailable',col:onLeave>0?'var(--amber)':''},
   ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
-  el('team-grid').innerHTML=filtered.length?filtered.map(m=>{
-    const av=ini(m.name);
+
+  const wrap=el('team-table-wrap');
+  if(!filtered.length){ wrap.innerHTML='<div class="empty" style="padding:40px">No team members match your filters.</div>'; return; }
+
+  let h=`<div class="fc-scroll"><table class="fc-table"><thead><tr>
+    <th class="left" style="min-width:160px">Name</th>
+    <th class="left" style="min-width:130px">Role</th>
+    <th class="left" style="min-width:140px">Email</th>
+    <th class="left" style="min-width:120px">Project / Site</th>
+    <th class="left" style="min-width:100px">Modules</th>
+    <th style="width:80px">Cost £/hr</th>
+    <th style="width:80px">Bill £/hr</th>
+    <th style="width:80px">Margin</th>
+    <th class="left" style="min-width:100px">Leave</th>
+    <th style="width:50px"></th>
+  </tr></thead><tbody>`;
+
+  filtered.forEach(m=>{
     const projNames=m.assignments.map(a=>{ const p=projects.find(x=>x.id===a.projectId); return p?`${p.name}${a.site?' / '+a.site:''}`:null }).filter(Boolean);
     const activeLeave=m.leaves.find(l=>new Date(l.start+'T00:00')<=today&&new Date(l.end+'T00:00')>=today);
     const nextLeave=m.leaves.filter(l=>new Date(l.start+'T00:00')>today).sort((a,b)=>a.start>b.start?1:-1)[0];
-    const assignedMs=milestones.filter(ms=>(ms.teamIds||[]).includes(m.id));
     const margin=(m.billRate||0)-(m.costRate||0);
-    return `<div class="mem-card">
-      <div class="mem-hdr">
-        <div class="mem-av" style="background:${m.color}22;color:${m.color}">${av}</div>
-        <div class="mem-info"><h3>${m.name}</h3><div class="mem-role">${m.role}${m.email?' · '+m.email:''}</div></div>
-        ${activeLeave?'<span class="leave-tag">On leave</span>':''}
-        <button class="btn-icon btn-sm" onclick="openMemModal('${m.id}')">e</button>
-        <button class="btn-icon btn-sm" onclick="showDelMem('${m.id}')" style="color:var(--t3)">x</button>
-      </div>
-      <div class="del-bar" id="dme-${m.id}">
-        <span style="flex:1;color:#991B1B">Delete ${m.name}?</span>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelMem('${m.id}')">Yes, delete</button>
-        <button class="btn btn-sm" onclick="el('dme-${m.id}').style.display='none'">Cancel</button>
-      </div>
-      <div class="mem-body">
-        ${projNames.length?`<div class="mem-row"><span class="mem-lbl">Project</span><div class="mem-val mem-chips">${projNames.map(p=>`<span class="mem-chip">${p}</span>`).join('')}</div></div>`:''}
-        ${m.modules&&m.modules.length?`<div class="mem-row"><span class="mem-lbl">Modules</span><div class="mem-val mem-chips">${m.modules.map(mod=>`<span class="mem-chip" style="background:${m.color}15;border-color:${m.color}44;color:${m.color}">${mod}</span>`).join('')}</div></div>`:''}
-        ${assignedMs.length?`<div class="mem-row"><span class="mem-lbl">Milestones</span><div class="mem-val mem-chips">${assignedMs.slice(0,3).map(ms=>`<span class="mem-chip" style="cursor:pointer;background:${ms.color}15;border-color:${ms.color}44;color:${ms.color}" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)">${ms.name}</span>`).join('')}${assignedMs.length>3?`<span class="mem-chip">+${assignedMs.length-3}</span>`:''}</div></div>`:''}
-        ${activeLeave?`<div style="background:#FEF3C7;border-radius:var(--rsm);padding:6px 9px;font-size:11px;color:#92400E">On leave until ${fmtD(activeLeave.end)} — ${activeLeave.reason||'Leave'}</div>`:''}
-        ${!activeLeave&&nextLeave?`<div class="mem-row"><span class="mem-lbl">Next leave</span><div class="mem-val" style="color:var(--amber);font-size:11px">${fmtS(nextLeave.start)} – ${fmtS(nextLeave.end)}${nextLeave.reason?' ('+nextLeave.reason+')':''}</div></div>`:''}
-      </div>
-      <div class="mem-ftr">
-        <div class="rate-box"><div class="rv" style="color:#993C1D">£${m.costRate||0}/hr</div><div class="rl">Cost rate</div></div>
-        <div class="rate-divider"></div>
-        <div class="rate-box"><div class="rv" style="color:var(--teal)">£${m.billRate||0}/hr</div><div class="rl">Bill rate</div></div>
-        <div class="rate-divider"></div>
-        <div class="rate-box"><div class="rv" style="color:${margin>=0?'var(--green)':'var(--red)'}">£${margin}/hr</div><div class="rl">Margin</div></div>
-      </div>
-    </div>`;
-  }).join(''):`<div class="empty" style="grid-column:1/-1">No team members match your filters.</div>`;
+
+    h+=`<tr>
+      <td class="left" style="padding:6px 10px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="av" style="background:${m.color}22;color:${m.color}">${ini(m.name)}</div>
+          <span class="editable" contenteditable onblur="editTeamField('${m.id}','name',this.textContent)" style="font-weight:600">${m.name}</span>
+        </div>
+      </td>
+      <td class="left"><span class="editable" contenteditable onblur="editTeamField('${m.id}','role',this.textContent)">${m.role}</span></td>
+      <td class="left"><span class="editable" contenteditable onblur="editTeamField('${m.id}','email',this.textContent)" style="color:var(--t2)">${m.email||''}</span></td>
+      <td class="left"><div class="mem-chips" style="gap:3px">${projNames.length?projNames.map(p=>`<span class="mem-chip" style="font-size:10px">${p}</span>`).join(''):'<span style="color:var(--t3);font-size:11px">—</span>'}</div></td>
+      <td class="left"><div class="mem-chips" style="gap:3px">${m.modules&&m.modules.length?m.modules.map(mod=>`<span class="mem-chip" style="font-size:10px;background:${m.color}15;border-color:${m.color}44;color:${m.color}">${mod}</span>`).join(''):'<span style="color:var(--t3);font-size:11px">—</span>'}</div></td>
+      <td style="text-align:right">
+        <input type="number" value="${m.costRate||0}" min="0" step="0.5"
+          onchange="editTeamField('${m.id}','costRate',this.value)"
+          style="width:60px;padding:3px 4px;text-align:right;border:1px solid var(--b2);border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);color:#993C1D;font-weight:600">
+      </td>
+      <td style="text-align:right">
+        <input type="number" value="${m.billRate||0}" min="0" step="0.5"
+          onchange="editTeamField('${m.id}','billRate',this.value)"
+          style="width:60px;padding:3px 4px;text-align:right;border:1px solid var(--b2);border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);color:var(--teal);font-weight:600">
+      </td>
+      <td style="text-align:right;font-weight:600;color:${margin>=0?'var(--green)':'var(--red)'}">£${margin}</td>
+      <td class="left" style="font-size:11px">
+        ${activeLeave?`<span class="leave-tag">On leave</span>`
+          :nextLeave?`<span style="color:var(--amber)">${fmtS(nextLeave.start)} – ${fmtS(nextLeave.end)}</span>`
+          :'<span style="color:var(--t3)">—</span>'}
+      </td>
+      <td style="text-align:center">
+        <button class="fc-edit-btn" onclick="openMemModal('${m.id}')" title="Edit full details">✎</button>
+        <button class="fc-edit-btn" onclick="confirmDelMemInline('${m.id}')" title="Delete" style="color:var(--t3)">🗑</button>
+      </td>
+    </tr>`;
+  });
+
+  // Totals row
+  h+=`<tr class="total-row">
+    <td class="left" colspan="5">TOTAL (${filtered.length} members)</td>
+    <td style="text-align:right;color:#993C1D">£${totalCost}</td>
+    <td style="text-align:right;color:var(--teal)">£${totalBill}</td>
+    <td style="text-align:right;color:${totalMargin>=0?'var(--green)':'var(--red)'}">£${totalMargin}</td>
+    <td colspan="2"></td>
+  </tr>`;
+
+  h+=`</tbody></table></div>`;
+  wrap.innerHTML=h;
+}
+
+function editTeamField(id, field, val){
+  const m=teams.find(t=>t.id===id); if(!m) return;
+  if(field==='costRate'||field==='billRate'){ m[field]=parseFloat(val)||0; }
+  else { m[field]=(val||'').trim(); }
+  saveData(); buildTeam();
+}
+
+function confirmDelMemInline(id){
+  const t=teams.find(x=>x.id===id);
+  if(!t) return;
+  if(!confirm('Delete '+t.name+'?')) return;
+  logAudit('deleted','member',t.name,[]);
+  teams=teams.filter(x=>x.id!==id);
+  renderAll();
 }
 
 // ─── FORECAST ────────────────────────────────────────────────────────────────
@@ -1970,6 +2134,8 @@ function saveForecastResource(){
     const val=el('fc-alloc-'+m.key)?.value;
     if(val!==undefined && val!=='') setMonthAllocOnResource(target, m.key, parseFloat(val)||0);
   });
+  if(editingFcId) logAudit('edited','forecast',data.name,[{field:'Role',to:data.role},{field:'Region',to:data.region},{field:'Bill/Hr',to:'£'+data.billH},{field:'Cost/Hr',to:'£'+data.costH}]);
+  else logAudit('created','forecast',data.name,[{field:'Role',to:data.role},{field:'Region',to:data.region},{field:'Bill/Hr',to:'£'+data.billH},{field:'Cost/Hr',to:'£'+data.costH}]);
   closeModal('forecast'); buildForecast(); saveData();
 }
 // internal helper used by saveForecastResource and seedForecast (same logic as setMonthAlloc but
@@ -1982,6 +2148,7 @@ function setMonthAllocOnResource(r, monthKey, num){
   weeks.forEach(w=>{ r.weeklyAlloc[w.key]=num; });
 }
 function delFcRes(id){
+  const r=fcResources.find(x=>x.id===id); if(r) logAudit('deleted','forecast',r.name,[]);
   fcResources=fcResources.filter(x=>x.id!==id); buildForecast(); saveData();
 }
 
@@ -2134,7 +2301,9 @@ function addLeaveRow(){
 function saveLeavePlan(){
   const r = fcResources.find(x=>x.id===editingLeaveResId);
   if(!r) return;
+  const oldCount = (r.fcLeaves||[]).length;
   r.fcLeaves = leaveRows.filter(l=>l.start&&l.end).map(l=>({...l, id:l.id||uid()}));
+  logAudit('edited','leave',r.name,[{field:'Leave entries',from:oldCount+' entries',to:r.fcLeaves.length+' entries'}]);
   saveData();
   closeModal('leaveplan');
   buildLeaveCalendar();
@@ -2382,11 +2551,240 @@ function buildLeaveCalendar(){
 }
 
 
+// ─── AUDIT LOG ──────────────────────────────────────────────────────────────
+let auditLog = [];
+
+function logAudit(action, itemType, itemName, changes){
+  auditLog.unshift({
+    id: uid(),
+    timestamp: new Date().toISOString(),
+    action,
+    itemType,
+    itemName,
+    changes: changes || []
+  });
+  if(auditLog.length > 500) auditLog = auditLog.slice(0, 500);
+}
+
+function diffObj(oldObj, newObj, fields){
+  const changes = [];
+  fields.forEach(f => {
+    const label = typeof f === 'object' ? f.label : f;
+    const key = typeof f === 'object' ? f.key : f;
+    let ov = oldObj[key], nv = newObj[key];
+    if(Array.isArray(ov)) ov = ov.join(', ');
+    if(Array.isArray(nv)) nv = nv.join(', ');
+    ov = ov == null ? '' : String(ov);
+    nv = nv == null ? '' : String(nv);
+    if(ov !== nv) changes.push({field: label, from: ov, to: nv});
+  });
+  return changes;
+}
+
+function buildAuditLog(){
+  const filterAction = el('af-action')?.value || '';
+  const filterType = el('af-type')?.value || '';
+  const search = (el('af-search')?.value || '').toLowerCase();
+
+  let filtered = auditLog.filter(e => {
+    if(filterAction && e.action !== filterAction) return false;
+    if(filterType && e.itemType !== filterType) return false;
+    if(search && !e.itemName.toLowerCase().includes(search) &&
+       !e.changes.some(c => c.field.toLowerCase().includes(search) ||
+         (c.from||'').toLowerCase().includes(search) ||
+         (c.to||'').toLowerCase().includes(search))) return false;
+    return true;
+  });
+
+  const total = auditLog.length;
+  const created = auditLog.filter(e => e.action === 'created').length;
+  const edited = auditLog.filter(e => e.action === 'edited').length;
+  const deleted = auditLog.filter(e => e.action === 'deleted').length;
+
+  el('audit-stats').innerHTML = [
+    {sl:'Total entries', sv: total, ss:'All recorded changes'},
+    {sl:'Created', sv: created, ss:'Items created', col:'#3B6D11'},
+    {sl:'Edited', sv: edited, ss:'Items modified', col:'#185FA5'},
+    {sl:'Deleted', sv: deleted, ss:'Items removed', col:'#E24B4A'},
+  ].map(s => `<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?' style="color:'+s.col+'"':''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
+
+  const cont = el('audit-body');
+  if(!filtered.length){
+    cont.innerHTML = '<div class="empty" style="padding:40px">No audit entries match your filters.</div>';
+    return;
+  }
+
+  let h = `<div style="overflow-x:auto"><table class="audit-table"><thead><tr>
+    <th style="width:150px">Timestamp</th>
+    <th style="width:70px">Action</th>
+    <th style="width:90px">Type</th>
+    <th style="width:160px">Item</th>
+    <th>Changes</th>
+  </tr></thead><tbody>`;
+
+  filtered.slice(0, 200).forEach(e => {
+    const dt = new Date(e.timestamp);
+    const ts = dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) + ' ' +
+               dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    let changesHtml = '';
+    if(e.action === 'deleted'){
+      changesHtml = '<span style="color:var(--t3);font-style:italic">Item removed</span>';
+    } else if(e.changes.length){
+      changesHtml = e.changes.map(c => {
+        if(e.action === 'created') return `<span class="field-name">${c.field}:</span> <span class="new-val">${c.to || '(empty)'}</span>`;
+        return `<span class="field-name">${c.field}:</span> <span class="old-val">${c.from || '(empty)'}</span> → <span class="new-val">${c.to || '(empty)'}</span>`;
+      }).join('<br>');
+    } else {
+      changesHtml = '<span style="color:var(--t3)">No field changes recorded</span>';
+    }
+
+    h += `<tr>
+      <td style="white-space:nowrap;color:var(--t2);font-size:11px">${ts}</td>
+      <td><span class="audit-action ${e.action}">${e.action}</span></td>
+      <td><span class="audit-type">${e.itemType}</span></td>
+      <td style="font-weight:500">${e.itemName}</td>
+      <td class="audit-changes">${changesHtml}</td>
+    </tr>`;
+  });
+
+  h += '</tbody></table></div>';
+  if(filtered.length > 200) h += `<div style="padding:10px 14px;border-top:1px solid var(--b1);font-size:11px;color:var(--t3);text-align:center">Showing 200 of ${filtered.length} entries</div>`;
+  cont.innerHTML = h;
+}
+
+function exportAuditLog(){
+  if(!auditLog.length){ alert('No audit entries to export.'); return; }
+  let csv = 'Timestamp,Action,Type,Item,Field,From,To\n';
+  auditLog.forEach(e => {
+    if(!e.changes.length){
+      csv += `"${e.timestamp}","${e.action}","${e.itemType}","${e.itemName.replace(/"/g,'""')}","","",""\n`;
+    } else {
+      e.changes.forEach(c => {
+        csv += `"${e.timestamp}","${e.action}","${e.itemType}","${e.itemName.replace(/"/g,'""')}","${c.field}","${(c.from||'').replace(/"/g,'""')}","${(c.to||'').replace(/"/g,'""')}"\n`;
+      });
+    }
+  });
+  const blob = new Blob([csv], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'audit-log-' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+function clearAuditLog(){
+  if(!confirm('Clear all audit log entries?')) return;
+  auditLog = [];
+  saveData();
+  buildAuditLog();
+}
+
+// ─── PUBLIC HOLIDAYS EDITOR ─────────────────────────────────────────────────
+let holEditRows = [];
+
+function openHolidaysModal(){
+  holEditRows = UK_HOLIDAYS.map(h => ({...h}));
+  const years = [...new Set(holEditRows.map(h => h.date.slice(0,4)))].sort();
+  const sel = el('hol-year-filter');
+  sel.innerHTML = '<option value="">All years</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+  renderHolidayRows();
+  el('modal-holidays').classList.add('open');
+}
+
+function renderHolidayRows(){
+  const yearFilter = el('hol-year-filter')?.value || '';
+  const filtered = yearFilter ? holEditRows.filter(h => h.date.startsWith(yearFilter)) : holEditRows;
+  el('hol-rows').innerHTML = filtered.length ? filtered.map((h, fi) => {
+    const i = holEditRows.indexOf(h);
+    return `<div class="dyn-row" style="gap:6px;align-items:center">
+      <input type="date" value="${h.date||''}" class="dyn-input" style="flex:0 0 140px" onchange="holEditRows[${i}].date=this.value">
+      <input value="${h.name||''}" placeholder="Holiday name" class="dyn-input" style="flex:1" onchange="holEditRows[${i}].name=this.value">
+      <button class="btn-icon" onclick="holEditRows.splice(${i},1);renderHolidayRows()">✕</button>
+    </div>`;
+  }).join('') : '<div style="color:var(--t3);font-size:12px;padding:8px 0">No holidays for this period.</div>';
+}
+
+function addHolidayRow(){
+  const year = el('hol-year-filter')?.value || new Date().getFullYear().toString();
+  holEditRows.push({date: year + '-01-01', name: ''});
+  holEditRows.sort((a, b) => a.date > b.date ? 1 : -1);
+  renderHolidayRows();
+}
+
+function addDefaultHolidaysForYear(){
+  const year = el('hol-year-filter')?.value;
+  if(!year){ alert('Select a year first from the dropdown.'); return; }
+  const y = parseInt(year);
+  const easter = computeEaster(y);
+  const goodFri = new Date(easter); goodFri.setDate(goodFri.getDate() - 2);
+  const easterMon = new Date(easter); easterMon.setDate(easterMon.getDate() + 1);
+  const mayDay = nthWeekday(y, 4, 1, 1);
+  const springBank = lastWeekday(y, 4, 1);
+  const summerBank = lastWeekday(y, 7, 1);
+  const defaults = [
+    {date: substituteDate(y, 0, 1), name: "New Year's Day"},
+    {date: fmtDateObj(goodFri), name: "Good Friday"},
+    {date: fmtDateObj(easterMon), name: "Easter Monday"},
+    {date: fmtDateObj(mayDay), name: "Early May Bank Holiday"},
+    {date: fmtDateObj(springBank), name: "Spring Bank Holiday"},
+    {date: fmtDateObj(summerBank), name: "Summer Bank Holiday"},
+    {date: substituteDate(y, 11, 25), name: "Christmas Day"},
+    {date: substituteDate(y, 11, 26), name: "Boxing Day"},
+  ];
+  let added = 0;
+  defaults.forEach(d => {
+    if(!holEditRows.some(h => h.date === d.date && h.name === d.name)){
+      holEditRows.push(d);
+      added++;
+    }
+  });
+  holEditRows.sort((a, b) => a.date > b.date ? 1 : -1);
+  renderHolidayRows();
+  if(!added) alert('All default holidays for ' + year + ' already exist.');
+}
+
+function computeEaster(y){
+  const a=y%19, b=Math.floor(y/100), c=y%100, d=Math.floor(b/4), e=b%4;
+  const f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  const m=Math.floor((a+11*h+22*l)/451), month=Math.floor((h+l-7*m+114)/31), day=((h+l-7*m+114)%31)+1;
+  return new Date(y, month-1, day);
+}
+function nthWeekday(y, month, dow, n){
+  const d = new Date(y, month, 1);
+  let count = 0;
+  while(count < n){ if(d.getDay() === dow) count++; if(count < n) d.setDate(d.getDate()+1); }
+  return d;
+}
+function lastWeekday(y, month, dow){
+  const d = new Date(y, month+1, 0);
+  while(d.getDay() !== dow) d.setDate(d.getDate()-1);
+  return d;
+}
+function substituteDate(y, month, day){
+  let d = new Date(y, month, day);
+  if(d.getDay() === 0) d.setDate(d.getDate()+1);
+  if(d.getDay() === 6) d.setDate(d.getDate()+2);
+  return fmtDateObj(d);
+}
+function fmtDateObj(d){ return d.toISOString().slice(0,10); }
+
+function saveHolidays(){
+  const valid = holEditRows.filter(h => h.date && h.name.trim());
+  valid.sort((a, b) => a.date > b.date ? 1 : -1);
+  const oldCount = UK_HOLIDAYS.length;
+  UK_HOLIDAYS.length = 0;
+  valid.forEach(h => UK_HOLIDAYS.push({date: h.date, name: h.name.trim()}));
+  logAudit('edited','holidays','Public Holidays',[{field:'Count',from:oldCount+' holidays',to:UK_HOLIDAYS.length+' holidays'}]);
+  closeModal('holidays');
+  saveData();
+  renderAll();
+}
+
 function showSec(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   el(name).classList.add('active');
-  const m={dashboard:0,timeline:1,hierarchy:2,team:3,forecast:4,leave:5};
+  const m={dashboard:0,timeline:1,hierarchy:2,team:3,forecast:4,leave:5,audit:6};
   if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
 }
 
@@ -2450,35 +2848,71 @@ document.addEventListener('mousemove',e=>{ if(tipEl.style.display==='block'){tip
 const SK='project_planner_v4';
 // Clear any old incompatible storage versions
 ['project_planner_v1','project_planner_v2','project_planner_v3'].forEach(k=>{ try{localStorage.removeItem(k)}catch(e){} });
-function saveData(){
-  try{ localStorage.setItem(SK,JSON.stringify({projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite})) }catch(e){}
+function getStateObj(){
+  return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS};
 }
+
+function saveData(){
+  const data = getStateObj();
+  try{ localStorage.setItem(SK,JSON.stringify(data)) }catch(e){}
+  // Debounced Firestore save
+  if(saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    DOC_REF.set(data).then(()=>{
+      firebaseReady=true;
+      console.log('Saved to Firestore');
+    }).catch(e=>console.warn('Firestore save failed:',e));
+  }, 1500);
+}
+
+function applyState(d){
+  projects=d.projects||[]; milestones=d.milestones||[]; teams=d.teams||[];
+  fcPeriodStart=d.fcPeriodStart||'2025-11'; fcPeriodEnd=d.fcPeriodEnd||'2026-05';
+  regenerateFcPeriod();
+  auditLog=d.auditLog||[];
+  if(d.ukHolidays && d.ukHolidays.length){ UK_HOLIDAYS.length=0; d.ukHolidays.forEach(h=>UK_HOLIDAYS.push(h)); }
+  fcResources=d.fcResources||[]; if(!fcResources.length) seedForecast();
+  fcResources.forEach(r=>{ if(!r.weeklyAlloc) r.weeklyAlloc={}; if(!r.fcLeaves) r.fcLeaves=[]; });
+  expProj=d.expProj||{}; expSite=d.expSite||{};
+  milestones.forEach(m=>{
+    if(!m.teamIds)m.teamIds=[];if(!m.agenda)m.agenda=[];
+    if(!m.tasks)m.tasks=[];if(!m.deps)m.deps=[];
+    if(m.progress===undefined)m.progress=0;
+  });
+  teams.forEach(t=>{
+    if(!t.assignments)t.assignments=[];if(!t.modules)t.modules=[];
+    if(!t.leaves)t.leaves=[];if(!t.costRate)t.costRate=0;if(!t.billRate)t.billRate=0;
+  });
+  projects.forEach(p=>{if(!p.sites)p.sites=[]});
+  syncForecastToTeam();
+}
+
 function loadData(){
+  // Load from localStorage first (instant)
   try{
-    const raw=localStorage.getItem(SK); if(!raw){seedData();seedForecast();syncForecastToTeam();return}
-    const d=JSON.parse(raw);
-    projects=d.projects||[]; milestones=d.milestones||[]; teams=d.teams||[];
-    fcPeriodStart=d.fcPeriodStart||'2025-11'; fcPeriodEnd=d.fcPeriodEnd||'2026-05';
-    regenerateFcPeriod();
-    fcResources=d.fcResources||[]; if(!fcResources.length) seedForecast();
-    fcResources.forEach(r=>{ if(!r.weeklyAlloc) r.weeklyAlloc={}; if(!r.fcLeaves) r.fcLeaves=[]; });
-    expProj=d.expProj||{}; expSite=d.expSite||{};
-    milestones.forEach(m=>{
-      if(!m.teamIds)m.teamIds=[];if(!m.agenda)m.agenda=[];
-      if(!m.tasks)m.tasks=[];if(!m.deps)m.deps=[];
-      if(m.progress===undefined)m.progress=0;
-    });
-    teams.forEach(t=>{
-      if(!t.assignments)t.assignments=[];if(!t.modules)t.modules=[];
-      if(!t.leaves)t.leaves=[];if(!t.costRate)t.costRate=0;if(!t.billRate)t.billRate=0;
-    });
-    projects.forEach(p=>{if(!p.sites)p.sites=[]});
-    syncForecastToTeam();
-  }catch(e){console.warn('loadData failed:',e);seedData();seedForecast();syncForecastToTeam()}
+    const raw=localStorage.getItem(SK);
+    if(raw){ applyState(JSON.parse(raw)); }
+    else { seedData(); seedForecast(); syncForecastToTeam(); }
+  }catch(e){ console.warn('localStorage load failed:',e); seedData(); seedForecast(); syncForecastToTeam(); }
+
+  // Then try Firestore (async, overrides localStorage if newer)
+  DOC_REF.get().then(doc=>{
+    firebaseReady=true;
+    if(doc.exists){
+      console.log('Loaded from Firestore');
+      applyState(doc.data());
+      renderAll();
+    } else {
+      console.log('No Firestore data yet, uploading current state');
+      DOC_REF.set(getStateObj()).catch(e=>console.warn('Initial Firestore save failed:',e));
+    }
+  }).catch(e=>{
+    console.warn('Firestore load failed, using localStorage:',e);
+  });
 }
 
 function renderAll(){
-  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar'].forEach(fn=>{
+  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildAuditLog'].forEach(fn=>{
     try{ window[fn](); } catch(e){ console.error(fn+' failed:',e); }
   });
   try{ saveData(); } catch(e){}
