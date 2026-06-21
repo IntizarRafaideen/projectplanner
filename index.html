@@ -207,6 +207,11 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 .fc-table tr:hover td{background:var(--s2)}
 .fc-table tr.total-row td{background:var(--tl);font-weight:700;border-top:2px solid var(--teal)}
 .fc-table tr.total-row:hover td{background:var(--tl)}
+.fc-table th.sticky-col,.fc-table td.sticky-col{position:sticky;z-index:2;background:var(--sf)}
+.fc-table th.sticky-col{background:var(--s2)}
+.fc-table tr.total-row td.sticky-col{background:var(--tl)}
+.fc-table th.sticky-col-1,.fc-table td.sticky-col-1{left:0}
+.fc-table th.sticky-col-2,.fc-table td.sticky-col-2{left:140px}
 .fc-scroll{overflow-x:auto}
 .month-group{background:var(--teal);color:#fff;text-align:center;padding:5px 8px;font-size:10px;font-weight:600;white-space:nowrap}
 .alloc-bar{height:6px;border-radius:3px;background:var(--b1);overflow:hidden;min-width:50px}
@@ -2652,8 +2657,8 @@ function buildFcWeekly(){
 
   h+=`<div class="fc-scroll"><table class="fc-table"><thead>
   <tr>
-    <th class="left" rowspan="2" style="min-width:140px">Resource</th>
-    <th class="left" rowspan="2">Rgn</th>
+    <th class="left sticky-col sticky-col-1" rowspan="2" style="min-width:140px">Resource</th>
+    <th class="left sticky-col sticky-col-2" rowspan="2">Rgn</th>
     ${weekHdrInfo.map(wi=>{
       return `<th class="month-hdr" colspan="2" style="${wi.hols.length?'background:var(--coral);':''}">
         ${wi.w.fullLabel}<br>
@@ -2680,7 +2685,7 @@ function buildFcWeekly(){
       sites.forEach(site=>{
         const sms=pms.filter(m=>m.site===site);
         h+=`<tr style="background:${proj.color}08">
-          <td class="left" colspan="2" style="padding:3px 10px;font-size:10px;white-space:nowrap;border-bottom:1px solid ${proj.color}33">
+          <td class="left sticky-col sticky-col-1" colspan="2" style="padding:3px 10px;font-size:10px;white-space:nowrap;border-bottom:1px solid ${proj.color}33;background:${proj.color}08">
             <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${proj.color};margin-right:4px"></span>
             <span style="font-weight:600;color:${proj.color}">${proj.name}</span>
             <span style="color:var(--t3)"> / ${site}</span>
@@ -2705,7 +2710,7 @@ function buildFcWeekly(){
       });
     });
     // Separator row
-    h+=`<tr><td colspan="${2+weeks.length*2+1}" style="padding:0;border-bottom:2px solid var(--teal);background:var(--tl);height:4px"></td></tr>`;
+    h+=`<tr><td class="sticky-col sticky-col-1" colspan="2" style="padding:0;border-bottom:2px solid var(--teal);background:var(--tl);height:4px"></td><td colspan="${weeks.length*2+1}" style="padding:0;border-bottom:2px solid var(--teal);background:var(--tl);height:4px"></td></tr>`;
   }
 
   filteredResources.forEach(r=>{
@@ -2726,12 +2731,12 @@ function buildFcWeekly(){
 
     // Main summary row
     h+=`<tr style="cursor:${hasSplits?'pointer':'default'};${hasSplits?'border-bottom:none;':''}" ${hasSplits?`onclick="fcWeeklyExpanded['${r.id}']=!fcWeeklyExpanded['${r.id}'];buildFcWeekly()"`:''}>
-      <td class="left" style="font-weight:600;font-size:11px;white-space:nowrap">
+      <td class="left sticky-col sticky-col-1" style="font-weight:600;font-size:11px;white-space:nowrap;background:var(--sf)">
         ${hasSplits?`<span class="chev${isExp?' open':''}" style="font-size:9px;margin-right:4px">▶</span>`:''}
         ${r.name}
         ${hasSplits?`<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--pl);color:var(--purple);margin-left:4px">${splits.length}</span>`:''}
       </td>
-      <td class="left"><span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span></td>
+      <td class="left sticky-col sticky-col-2" style="background:var(--sf)"><span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span></td>
       ${weeks.map(w=>{
         const c=fcCalcWeek(r,w);
         pH+=c.hours;
@@ -2760,7 +2765,7 @@ function buildFcWeekly(){
         const pColor = p?.color || 'var(--t3)';
         let spH = 0;
         h+=`<tr style="background:var(--s2)">
-          <td class="left" colspan="2" style="padding-left:28px;font-size:10px;color:var(--t2)">
+          <td class="left sticky-col sticky-col-1" colspan="2" style="padding-left:28px;font-size:10px;color:var(--t2);background:var(--s2)">
             <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${pColor};margin-right:5px"></span>
             ${label}
           </td>
@@ -2782,7 +2787,7 @@ function buildFcWeekly(){
       const hasUnassigned = weeks.some(w=>fcWeekEntries(r,w.key).some(e=>!e.projectId && e.pct>0));
       if(hasUnassigned){
         h+=`<tr style="background:var(--s2)">
-          <td class="left" colspan="2" style="padding-left:28px;font-size:10px;color:var(--t3);font-style:italic">Unassigned</td>
+          <td class="left sticky-col sticky-col-1" colspan="2" style="padding-left:28px;font-size:10px;color:var(--t3);font-style:italic;background:var(--s2)">Unassigned</td>
           ${weeks.map(w=>{
             const entries = fcWeekEntries(r, w.key);
             const unPct = entries.filter(e=>!e.projectId).reduce((s,e)=>s+(e.pct||0),0);
@@ -2797,7 +2802,7 @@ function buildFcWeekly(){
     }
   });
 
-  h+=`<tr class="total-row"><td class="left" colspan="2">Weekly totals (${filteredResources.length} resources)</td>`;
+  h+=`<tr class="total-row"><td class="left sticky-col sticky-col-1" colspan="2" style="background:var(--tl)">Weekly totals (${filteredResources.length} resources)</td>`;
   let gH=0;
   weeks.forEach(w=>{
     let wH=0;
