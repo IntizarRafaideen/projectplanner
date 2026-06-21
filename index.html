@@ -1169,10 +1169,7 @@ function buildGantt(){
         h+=`<div class="g-lbl" style="padding-left:36px;cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)">
           <div style="width:7px;height:7px;border-radius:50%;background:${ms.color};flex-shrink:0"></div>
           <div style="flex:1;overflow:hidden"><div style="font-size:${gRowH==='comfort'?'12':'11'}px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px">${ms.name}</div><div style="font-size:9px;color:var(--t3)">${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' – '+fmtS(ms.end):''}</div></div>
-          <input type="range" min="0" max="100" step="5" value="${ms.progress}"
-            onclick="event.stopPropagation()" onchange="updateMsProgress('${ms.id}',this.value)"
-            style="width:40px;accent-color:${ms.color};cursor:pointer;flex-shrink:0">
-          <span style="font-size:9px;padding:1px 5px;border-radius:10px;background:${stat.bg};color:${stat.c};flex-shrink:0">${ms.progress}%</span>
+          <span style="font-size:9px;padding:1px 5px;border-radius:10px;background:${stat.bg};color:${stat.c};flex-shrink:0;cursor:pointer" onclick="event.stopPropagation();promptProgress('${ms.id}')">${ms.progress}%</span>
         </div>`;
         h+=`<div style="flex:1;position:relative;display:flex">`;
         cols.forEach(()=>h+=`<div class="g-cell" style="width:${W}px;min-width:${W}px;height:${RH}px"></div>`);
@@ -1272,14 +1269,7 @@ function msRow(ms){
       <div class="ms-row-name">${ms.name}</div>
       <div class="ms-dates">${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' – '+fmtS(ms.end):''}</div>
       ${assignedMems.length?`<div style="display:flex;gap:-4px">${assignedMems.slice(0,4).map(m=>`<div class="av" style="background:${m.color}22;color:${m.color};border:1px solid var(--sf)" title="${m.name}">${ini(m.name)}</div>`).join('')}${assignedMems.length>4?`<div class="av" style="background:var(--s2);color:var(--t3)">+${assignedMems.length-4}</div>`:''}</div>`:''}
-      <div style="display:flex;align-items:center;gap:4px" onclick="event.stopPropagation()">
-        <input type="range" min="0" max="100" step="5" value="${ms.progress}"
-          oninput="this.nextElementSibling.textContent=this.value+'%';this.previousElementSibling.style.width=this.value+'%'"
-          onchange="updateMsProgress('${ms.id}',this.value)"
-          style="width:60px;accent-color:${ms.color};cursor:pointer">
-        <span style="font-size:10px;font-weight:600;color:${s.c};min-width:28px">${ms.progress}%</span>
-      </div>
-      <span class="badge" style="background:${s.bg};color:${s.c}">${s.t}</span>
+      <span class="badge" style="background:${s.bg};color:${s.c};cursor:pointer" onclick="event.stopPropagation();promptProgress('${ms.id}')">${ms.progress}%</span>
       <button class="btn-icon btn-sm" onclick="event.stopPropagation();openMsModal('${ms.id}')" title="Edit">✎</button>
       <button class="btn-icon btn-sm" onclick="event.stopPropagation();showDelMs('${ms.id}')" title="Delete" style="color:var(--t3)">🗑</button>
     </div>
@@ -1375,11 +1365,15 @@ function addTask(msId){
 }
 function saveTask(msId){ const lbl=el('ti-'+msId)?.value?.trim(); if(!lbl)return; const own=el('to-'+msId)?.value?.trim()||'Team'; const ms=milestones.find(m=>m.id===msId); ms.tasks.push({id:uid(),label:lbl,done:false,owner:own}); recalc(ms); rerender(msId); buildDashboard() }
 
-function updateMsProgress(msId, val){
+function promptProgress(msId){
   const ms=milestones.find(m=>m.id===msId); if(!ms) return;
+  const val=prompt('Update progress for "'+ms.name+'" (0–100):', ms.progress);
+  if(val===null) return;
+  const num=Math.min(100,Math.max(0,parseInt(val)||0));
+  if(num===ms.progress) return;
   const oldProg=ms.progress;
-  ms.progress=Math.min(100,Math.max(0,parseInt(val)||0));
-  logAudit('edited','milestone',ms.name,[{field:'Progress',from:oldProg+'%',to:ms.progress+'%'}]);
+  ms.progress=num;
+  logAudit('edited','milestone',ms.name,[{field:'Progress',from:oldProg+'%',to:num+'%'}]);
   renderAll();
 }
 
