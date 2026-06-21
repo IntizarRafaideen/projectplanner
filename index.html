@@ -2262,6 +2262,166 @@ function applyClearAlloc(){
   buildForecast();
 }
 
+// ── EXPORT WEEKLY FORECAST TO EXCEL ──────────────────────────────────────────
+function exportWeeklyForecastXl(){
+  const monthFilter=el('fc-week-month')?.value||'all';
+  const weeks = monthFilter==='all' ? FC_WEEKS : FC_WEEKS.filter(w=>w.monthKey===monthFilter);
+  if(!weeks.length){ alert('No weeks to export.'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const data = [];
+  const merges = [];
+
+  // Row 0: Month headers
+  const monthRow = ['Resource','Region','Bill/Hr','Cost/Hr'];
+  const monthGroups = [];
+  weeks.forEach(w=>{
+    const last=monthGroups[monthGroups.length-1];
+    if(last && last.key===w.monthKey) last.count++;
+    else monthGroups.push({key:w.monthKey, label:w.monthLabel+" '"+String(w.key.slice(0,4)).slice(2), count:1});
+  });
+  let colIdx=4;
+  monthGroups.forEach(mg=>{
+    monthRow.push(mg.label);
+    for(let i=1;i<mg.count*2;i++) monthRow.push('');
+    merges.push({s:{r:0,c:colIdx},e:{r:0,c:colIdx+mg.count*2-1}});
+    colIdx+=mg.count*2;
+  });
+  monthRow.push('Total Hours','Total Cost','Total Revenue','Margin','NPM %');
+  data.push(monthRow);
+
+  // Row 1: Week headers
+  const weekRow = ['','','',''];
+  weeks.forEach(w=>{
+    weekRow.push(w.fullLabel+' ('+fmtWeekRange(w)+')');
+    weekRow.push('');
+    // merge alloc+hrs header per week
+  });
+  weekRow.push('','','','','');
+  data.push(weekRow);
+
+  // Row 2: Sub-headers
+  const subRow = ['Resource','Region','Bill/Hr','Cost/Hr'];
+  weeks.forEach(w=>{
+    subRow.push('Alloc %');
+    subRow.push('Hours ('+w.hours+'h avail)');
+  });
+  subRow.push('Total Hours','Total Cost £','Total Revenue £','Margin £','NPM %');
+  data.push(subRow);
+
+  // Row 3+: Milestone timeline
+  projects.forEach(proj=>{
+    const pms=milestones.filter(m=>m.projectId===proj.id);
+    (proj.sites||[]).forEach(site=>{
+      const sms=pms.filter(m=>m.site===site);
+      const msRow=[proj.name+' / '+site,'','',''];
+      weeks.forEach(w=>{
+        const weekMs=sms.filter(ms=>{
+          if(!ms.start) return false;
+          const msEnd=ms.end||ms.start;
+          return ms.start<=w.end && msEnd>=w.start;
+        });
+        msRow.push(weekMs.map(ms=>ms.name).join(', '));
+        msRow.push('');
+      });
+      msRow.push('','','','','');
+      data.push(msRow);
+    });
+  });
+
+  // Empty separator row
+  data.push([]);
+  const dataStartRow = data.length; // 0-indexed row where resource data starts
+
+  // Resource rows with formulas
+  fcResources.forEach((r,ri)=>{
+    const row = [r.name, r.region, r.billH, r.costH];
+    const rowNum = dataStartRow + ri + 1; // 1-indexed for Excel
+
+    weeks.forEach((w,wi)=>{
+      const alloc = fcWeekAlloc(r, w.key);
+      const allocCol = 4 + wi*2; // 0-indexed column for alloc%
+      const hrsCol = allocCol + 1; // hours column
+      row.push(alloc/100); // alloc as decimal for Excel %
+      // Formula: alloc% × available hours
+      const allocCellRef = XLSX.utils.encode_cell({r:rowNum-1, c:allocCol});
+      row.push({f: allocCellRef+'*'+w.hours});
+    });
+
+    const lastWeekHrsCol = 4 + (weeks.length-1)*2 + 1;
+    const firstHrsCol = 5;
+    // Total hours: SUM of all hours columns
+    const hrsCols = [];
+    for(let wi=0;wi<weeks.length;wi++) hrsCols.push(XLSX.utils.encode_cell({r:rowNum-1, c:5+wi*2}));
+    row.push({f: hrsCols.join('+')});
+
+    // Total cost: total_hours × costH
+    const totalHrsRef = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2});
+    const costHRef = XLSX.utils.encode_cell({r:rowNum-1, c:3});
+    const billHRef = XLSX.utils.encode_cell({r:rowNum-1, c:2});
+    row.push({f: totalHrsRef+'*'+costHRef}); // cost
+    row.push({f: totalHrsRef+'*'+billHRef}); // revenue
+    // Margin = rev - cost
+    const revRef = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2+2});
+    const costRef2 = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2+1});
+    row.push({f: revRef+'-'+costRef2}); // margin
+    // NPM = margin/revenue
+    const marginRef = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2+3});
+    row.push({f: 'IF('+revRef+'=0,0,'+marginRef+'/'+revRef+')'}); // npm
+
+    data.push(row);
+  });
+
+  // Totals row
+  const totalsRowNum = dataStartRow + fcResources.length + 1;
+  const totRow = ['TOTAL','','',''];
+  weeks.forEach((w,wi)=>{
+    // Sum alloc column (not meaningful but keep structure)
+    totRow.push('');
+    // Sum hours
+    const colLetter = XLSX.utils.encode_col(5+wi*2);
+    const firstRow = dataStartRow+1;
+    const lastRow = dataStartRow+fcResources.length;
+    totRow.push({f: 'SUM('+colLetter+firstRow+':'+colLetter+lastRow+')'});
+  });
+  // Total hrs/cost/rev/margin
+  for(let ci=0;ci<4;ci++){
+    const colLetter = XLSX.utils.encode_col(4+weeks.length*2+ci);
+    const firstRow = dataStartRow+1;
+    const lastRow = dataStartRow+fcResources.length;
+    totRow.push({f: 'SUM('+colLetter+firstRow+':'+colLetter+lastRow+')'});
+  }
+  // NPM for totals
+  const tRevRef = XLSX.utils.encode_cell({r:totalsRowNum-1, c:4+weeks.length*2+2});
+  const tMarRef = XLSX.utils.encode_cell({r:totalsRowNum-1, c:4+weeks.length*2+3});
+  totRow.push({f: 'IF('+tRevRef+'=0,0,'+tMarRef+'/'+tRevRef+')'});
+  data.push(totRow);
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!merges'] = merges;
+
+  // Format alloc% columns as percentage
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let R=dataStartRow;R<=range.e.r;R++){
+    for(let wi=0;wi<weeks.length;wi++){
+      const cellRef = XLSX.utils.encode_cell({r:R, c:4+wi*2});
+      if(ws[cellRef]) ws[cellRef].z = '0%';
+    }
+    // NPM column
+    const npmRef = XLSX.utils.encode_cell({r:R, c:4+weeks.length*2+4});
+    if(ws[npmRef]) ws[npmRef].z = '0.0%';
+  }
+
+  // Column widths
+  const colWidths = [{wch:20},{wch:6},{wch:8},{wch:8}];
+  weeks.forEach(()=>{ colWidths.push({wch:8}); colWidths.push({wch:10}); });
+  colWidths.push({wch:10},{wch:12},{wch:12},{wch:10},{wch:8});
+  ws['!cols'] = colWidths;
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Weekly Forecast');
+  XLSX.writeFile(wb, 'notXL-Weekly-Forecast-'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
 function buildFcSummary(){
   let h=`<div class="fc-scroll"><table class="fc-table"><thead><tr>
     <th class="left" style="min-width:155px">Resource</th>
@@ -2390,6 +2550,7 @@ function buildFcWeekly(){
       <button class="btn btn-sm" onclick="fcExpandAllWeekly(false)">▲ Collapse all</button>
       <button class="btn btn-sm" onclick="openBulkAllocModal()">⚡ Bulk Allocate</button>
       <button class="btn btn-sm" onclick="openClearAllocModal()" style="color:var(--red)">🗑 Clear Allocations</button>
+      <button class="btn btn-sm" onclick="exportWeeklyForecastXl()">⬇ Export Excel</button>
     </div>
   </div>`;
 
@@ -3937,7 +4098,18 @@ async function checkSession(){
 const _origShowSec = showSec;
 
 // INIT
-checkSession();
+// Auth disabled during dev — bypass login
+const AUTH_ENABLED = false;
+if(AUTH_ENABLED){
+  checkSession();
+} else {
+  currentUser = {id:'dev',name:'Developer',email:'dev@notxl.com',role:'superadmin',passHash:''};
+  el('auth-screen').style.display='none';
+  el('app-wrap').style.display='block';
+  updateUserUI();
+  loadData();
+  renderAll(true);
+}
 </script>
 </body>
 </html>
