@@ -301,6 +301,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="ntab" onclick="showSec('hierarchy')">Projects</button>
       <button class="ntab" onclick="showSec('forecast')">Forecast</button>
       <button class="ntab" onclick="showSec('leave')">Leave</button>
+      <button class="ntab" onclick="showSec('invoicing')">Invoicing</button>
       <button class="ntab" onclick="showSec('masterdata')">Master Data</button>
       <button class="ntab" onclick="showSec('audit')">Audit</button>
     </div>
@@ -411,6 +412,20 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   </div>
   <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="leave-body">
     <div class="empty" style="padding:40px">Loading leave calendar…</div>
+  </div>
+</div>
+
+<!-- INVOICING -->
+<div id="invoicing" class="section">
+  <div class="page-hdr">
+    <h1>Invoicing</h1>
+    <span style="font-size:12px;color:var(--t3);margin-right:auto">Track planned, actual, and forecasted invoicing</span>
+    <button class="btn btn-sm" onclick="addInvoiceRow()">+ Add Month</button>
+    <button class="btn btn-sm" onclick="exportInvoicingXl()">⬇ Export Excel</button>
+  </div>
+  <div class="stats-row" id="inv-stats"></div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden">
+    <div class="fc-scroll" id="inv-table-body"></div>
   </div>
 </div>
 
@@ -3415,6 +3430,152 @@ function buildLeaveCalendar(){
 }
 
 
+// ─── INVOICING ──────────────────────────────────────────────────────────────
+let invoiceData = [
+  {id:'inv1',month:'May-25',planned:108190,actual:45000,wave3:45000,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv2',month:'Jun-25',planned:73350,actual:114080,wave3:114080,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv3',month:'Jul-25',planned:151172.50,actual:90214.06,wave3:90214.06,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv4',month:'Aug-25',planned:91130.50,actual:73000,wave3:73000,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv5',month:'Sep-25',planned:118528,actual:188151.14,wave3:188151.14,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv6',month:'Oct-25',planned:145714,actual:179761,wave3:179761,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv7',month:'Nov-25',planned:140467.50,actual:170818,wave3:170818,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv8',month:'Dec-25',planned:133647.50,actual:159823,wave3:159823,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv9',month:'Jan-26',planned:208475,actual:140177,wave3:140177,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv10',month:'Feb-26',planned:67610,actual:140000,wave3:130000,additional:10000,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv11',month:'Mar-26',planned:66060,actual:226000,wave3:128000,additional:48000,barnsley:20000,clitheroe:0,clitheroCRs:0,dataBridge:30000},
+  {id:'inv12',month:'Apr-26',planned:4500,actual:156000,wave3:78000,additional:28000,barnsley:20000,clitheroe:0,clitheroCRs:0,dataBridge:30000},
+  {id:'inv13',month:'May-26',planned:0,actual:158000,wave3:40000,additional:68000,barnsley:10000,clitheroe:10000,clitheroCRs:0,dataBridge:30000},
+  {id:'inv14',month:'Jun-26',planned:0,actual:0,wave3:22000,additional:100888.75,barnsley:50000,clitheroe:40000,clitheroCRs:0,dataBridge:0},
+  {id:'inv15',month:'Jul-26',planned:0,actual:0,wave3:0,additional:0,barnsley:65000,clitheroe:40000,clitheroCRs:0,dataBridge:0},
+  {id:'inv16',month:'Aug-26',planned:0,actual:0,wave3:0,additional:0,barnsley:35000,clitheroe:50000,clitheroCRs:22000,dataBridge:0},
+  {id:'inv17',month:'Sep-26',planned:0,actual:0,wave3:0,additional:0,barnsley:40000,clitheroe:18000,clitheroCRs:0,dataBridge:0},
+  {id:'inv18',month:'Oct-26',planned:0,actual:0,wave3:0,additional:0,barnsley:50000,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv19',month:'Nov-26',planned:0,actual:0,wave3:0,additional:0,barnsley:50000,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv20',month:'Dec-26',planned:0,actual:0,wave3:0,additional:0,barnsley:20000,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv21',month:'Jan-27',planned:0,actual:0,wave3:0,additional:0,barnsley:40000,clitheroe:0,clitheroCRs:0,dataBridge:0},
+  {id:'inv22',month:'Feb-27',planned:0,actual:0,wave3:0,additional:0,barnsley:20000,clitheroe:0,clitheroCRs:0,dataBridge:0},
+];
+
+const INV_COLS = [
+  {key:'month',label:'Month',type:'text',width:90},
+  {key:'planned',label:'Planned (SOW)',type:'money',width:110},
+  {key:'actual',label:'Actual',type:'money',width:110},
+  {key:'wave3',label:'Wave 3 Forecast',type:'money',width:120},
+  {key:'additional',label:'Additional (CRs)',type:'money',width:120},
+  {key:'barnsley',label:'Barnsley',type:'money',width:100},
+  {key:'clitheroe',label:'Clitheroe',type:'money',width:100},
+  {key:'clitheroCRs',label:'Clitheroe CRs',type:'money',width:100},
+  {key:'dataBridge',label:'Data Bridge',type:'money',width:100},
+];
+
+function invTotal(row){
+  return (row.wave3||0)+(row.additional||0)+(row.barnsley||0)+(row.clitheroe||0)+(row.clitheroCRs||0)+(row.dataBridge||0);
+}
+
+function fmtMoney(n){ return n?'£'+Math.round(n).toLocaleString('en-GB'):'—'; }
+
+function buildInvoicing(){
+  const cont=el('inv-table-body');
+  if(!cont) return;
+
+  // Stats
+  const tPlanned=invoiceData.reduce((s,r)=>s+(r.planned||0),0);
+  const tActual=invoiceData.reduce((s,r)=>s+(r.actual||0),0);
+  const tTotal=invoiceData.reduce((s,r)=>s+invTotal(r),0);
+  const tVariance=tTotal-tPlanned;
+  el('inv-stats').innerHTML=[
+    {sl:'Planned (SOW)',sv:fmtMoney(tPlanned),ss:'Total contract value'},
+    {sl:'Actual invoiced',sv:fmtMoney(tActual),ss:'Invoiced to date',col:'var(--teal)'},
+    {sl:'Total forecast',sv:fmtMoney(tTotal),ss:'All streams combined',col:'#185FA5'},
+    {sl:'Variance',sv:fmtMoney(Math.abs(tVariance)),ss:tVariance>=0?'Over plan':'Under plan',col:tVariance>=0?'var(--green)':'var(--red)'},
+  ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?' style="color:'+s.col+'"':''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
+
+  // Table
+  let h=`<table class="fc-table"><thead><tr>
+    <th class="left" style="width:30px">#</th>`;
+  INV_COLS.forEach(c=>h+=`<th class="${c.type==='text'?'left':''}" style="min-width:${c.width}px">${c.label}</th>`);
+  h+=`<th style="min-width:110px">Total</th><th style="width:40px"></th></tr></thead><tbody>`;
+
+  invoiceData.forEach((row,i)=>{
+    const total=invTotal(row);
+    const hasActual=row.actual>0;
+    const variance=(row.actual||0)-(row.planned||0);
+    h+=`<tr>
+      <td class="left" style="color:var(--t3);font-size:11px">${i+1}</td>`;
+    INV_COLS.forEach(c=>{
+      if(c.type==='text'){
+        h+=`<td class="left"><input value="${row[c.key]||''}" onchange="editInvoice('${row.id}','${c.key}',this.value)"
+          style="width:${c.width-20}px;padding:3px 6px;border:1px solid var(--b2);border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);font-weight:600"></td>`;
+      } else {
+        const val=row[c.key]||0;
+        const colStyle=c.key==='actual'&&val>0?'color:var(--teal);font-weight:600':c.key==='planned'?'color:#993C1D':'';
+        h+=`<td style="text-align:right"><input type="number" value="${val}" min="0" step="100"
+          onchange="editInvoice('${row.id}','${c.key}',this.value)"
+          style="width:${c.width-20}px;padding:3px 4px;text-align:right;border:1px solid var(--b2);border-radius:4px;font-size:11px;font-family:Inter,sans-serif;background:var(--sf);${colStyle}"></td>`;
+      }
+    });
+    h+=`<td style="text-align:right;font-weight:700;color:var(--teal)">${fmtMoney(total)}</td>`;
+    h+=`<td style="text-align:center"><button class="fc-edit-btn" onclick="deleteInvoiceRow('${row.id}')" style="color:var(--t3)">🗑</button></td>`;
+    h+=`</tr>`;
+  });
+
+  // Totals row
+  h+=`<tr class="total-row"><td class="left"></td>`;
+  INV_COLS.forEach(c=>{
+    if(c.type==='text'){ h+=`<td class="left" style="font-weight:700">Total (GBP)</td>`; }
+    else {
+      const sum=invoiceData.reduce((s,r)=>s+(r[c.key]||0),0);
+      h+=`<td style="text-align:right;font-weight:700">${fmtMoney(sum)}</td>`;
+    }
+  });
+  h+=`<td style="text-align:right;font-weight:700;color:var(--teal)">${fmtMoney(tTotal)}</td><td></td>`;
+  h+=`</tr></tbody></table>`;
+
+  cont.innerHTML=h;
+}
+
+function editInvoice(id, field, val){
+  const row=invoiceData.find(r=>r.id===id); if(!row) return;
+  if(field==='month') row[field]=(val||'').trim();
+  else row[field]=parseFloat(val)||0;
+  saveData();
+  buildInvoicing();
+}
+
+function addInvoiceRow(){
+  invoiceData.push({id:uid(),month:'',planned:0,actual:0,wave3:0,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0});
+  saveData();
+  buildInvoicing();
+}
+
+function deleteInvoiceRow(id){
+  const row=invoiceData.find(r=>r.id===id);
+  if(!row) return;
+  if(!confirm('Delete row "'+row.month+'"?')) return;
+  invoiceData=invoiceData.filter(r=>r.id!==id);
+  saveData();
+  buildInvoicing();
+}
+
+function exportInvoicingXl(){
+  if(!invoiceData.length){ alert('No data to export.'); return; }
+  const wb=XLSX.utils.book_new();
+  const header=['#','Month','Planned (SOW)','Actual','Wave 3 Forecast','Additional (CRs)','Barnsley','Clitheroe','Clitheroe CRs','Data Bridge','Total'];
+  const data=[header];
+  invoiceData.forEach((r,i)=>{
+    data.push([i+1,r.month,r.planned,r.actual,r.wave3,r.additional,r.barnsley,r.clitheroe,r.clitheroCRs,r.dataBridge,invTotal(r)]);
+  });
+  // Totals
+  const totRow=['','Total (GBP)'];
+  INV_COLS.slice(1).forEach(c=>totRow.push(invoiceData.reduce((s,r)=>s+(r[c.key]||0),0)));
+  totRow.push(invoiceData.reduce((s,r)=>s+invTotal(r),0));
+  data.push(totRow);
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:4},{wch:10},{wch:14},{wch:14},{wch:16},{wch:14},{wch:12},{wch:12},{wch:14},{wch:12},{wch:14}];
+  XLSX.utils.book_append_sheet(wb,ws,'Invoicing');
+  XLSX.writeFile(wb,'notXL-Invoicing-'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
 // ─── AUDIT LOG ──────────────────────────────────────────────────────────────
 let auditLog = [];
 
@@ -3787,7 +3948,7 @@ function showSec(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   el(name).classList.add('active');
-  const m={dashboard:0,timeline:1,hierarchy:2,forecast:3,leave:4,masterdata:5,audit:6};
+  const m={dashboard:0,timeline:1,hierarchy:2,forecast:3,leave:4,invoicing:5,masterdata:6,audit:7};
   if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
   if(name==='users') buildUsersTable();
 }
@@ -3853,7 +4014,7 @@ const SK='project_planner_v4';
 // Clear any old incompatible storage versions
 ['project_planner_v1','project_planner_v2','project_planner_v3'].forEach(k=>{ try{localStorage.removeItem(k)}catch(e){} });
 function getStateObj(){
-  return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS,rateCards:RATE_CARDS};
+  return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS,rateCards:RATE_CARDS,invoiceData};
 }
 
 function saveData(){
@@ -3879,6 +4040,7 @@ function applyState(d){
   auditLog=d.auditLog||[];
   if(d.ukHolidays && d.ukHolidays.length){ UK_HOLIDAYS.length=0; d.ukHolidays.forEach(h=>UK_HOLIDAYS.push(h)); }
   if(d.rateCards && d.rateCards.length){ RATE_CARDS.length=0; d.rateCards.forEach(r=>RATE_CARDS.push(r)); }
+  if(d.invoiceData) invoiceData=d.invoiceData;
   fcResources=d.fcResources||[]; if(!fcResources.length) seedForecast();
   fcResources.forEach(r=>{ if(!r.weeklyAlloc) r.weeklyAlloc={}; if(!r.fcLeaves) r.fcLeaves=[]; });
   expProj=d.expProj||{}; expSite=d.expSite||{};
@@ -3923,7 +4085,7 @@ function loadData(){
 }
 
 function renderAll(skipSave){
-  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildMasterData','buildAuditLog'].forEach(fn=>{
+  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildInvoicing','buildMasterData','buildAuditLog'].forEach(fn=>{
     try{ window[fn](); } catch(e){ console.error(fn+' failed:',e); }
   });
   if(!skipSave){ try{ saveData(); } catch(e){} }
