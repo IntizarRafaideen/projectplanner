@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>notXL</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <! -- and end with -->
@@ -2262,164 +2263,250 @@ function applyClearAlloc(){
   buildForecast();
 }
 
-// ── EXPORT WEEKLY FORECAST TO EXCEL ──────────────────────────────────────────
-function exportWeeklyForecastXl(){
+// ── EXPORT WEEKLY FORECAST TO EXCEL (ExcelJS) ───────────────────────────────
+async function exportWeeklyForecastXl(){
   const monthFilter=el('fc-week-month')?.value||'all';
   const weeks = monthFilter==='all' ? FC_WEEKS : FC_WEEKS.filter(w=>w.monthKey===monthFilter);
   if(!weeks.length){ alert('No weeks to export.'); return; }
 
-  const wb = XLSX.utils.book_new();
-  const data = [];
-  const merges = [];
+  const wb = new ExcelJS.Workbook();
+  wb.creator='notXL';
+  const ws = wb.addWorksheet('Weekly Forecast',{views:[{state:'frozen',xSplit:4,ySplit:3}]});
 
-  // Row 0: Month headers
-  const monthRow = ['Resource','Region','Bill/Hr','Cost/Hr'];
-  const monthGroups = [];
+  const tealFill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0F6E56'}};
+  const darkFill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1A1917'}};
+  const lightGrayFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F1EE'}};
+  const greenFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEAF3DE'}};
+  const amberFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFAEEDA'}};
+  const redFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFCEBEB'}};
+  const tealLightFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE1F5EE'}};
+  const whiteFont={color:{argb:'FFFFFFFF'},bold:true,size:10};
+  const boldFont={bold:true,size:10};
+  const normalFont={size:10};
+  const smallFont={size:9,color:{argb:'FF6B6960'}};
+  const thinBorder={top:{style:'thin',color:{argb:'FFE4E2DC'}},bottom:{style:'thin',color:{argb:'FFE4E2DC'}},left:{style:'thin',color:{argb:'FFE4E2DC'}},right:{style:'thin',color:{argb:'FFE4E2DC'}}};
+
+  // Build month groups
+  const monthGroups=[];
   weeks.forEach(w=>{
     const last=monthGroups[monthGroups.length-1];
     if(last && last.key===w.monthKey) last.count++;
     else monthGroups.push({key:w.monthKey, label:w.monthLabel+" '"+String(w.key.slice(0,4)).slice(2), count:1});
   });
-  let colIdx=4;
+
+  const totalColStart = 5 + weeks.length*2;
+
+  // ── ROW 1: Month headers ──
+  const r1 = ws.getRow(1);
+  ws.getCell(1,1).value='Resource'; ws.getCell(1,2).value='Region';
+  ws.getCell(1,3).value='Bill/Hr'; ws.getCell(1,4).value='Cost/Hr';
+  for(let c=1;c<=4;c++){r1.getCell(c).fill=tealFill;r1.getCell(c).font=whiteFont;r1.getCell(c).border=thinBorder}
+  let mc=5;
   monthGroups.forEach(mg=>{
-    monthRow.push(mg.label);
-    for(let i=1;i<mg.count*2;i++) monthRow.push('');
-    merges.push({s:{r:0,c:colIdx},e:{r:0,c:colIdx+mg.count*2-1}});
-    colIdx+=mg.count*2;
+    const startC=mc, endC=mc+mg.count*2-1;
+    ws.mergeCells(1,startC,1,endC);
+    ws.getCell(1,startC).value=mg.label;
+    ws.getCell(1,startC).fill=tealFill;ws.getCell(1,startC).font=whiteFont;
+    ws.getCell(1,startC).alignment={horizontal:'center'};
+    for(let c=startC;c<=endC;c++) ws.getCell(1,c).border=thinBorder;
+    mc=endC+1;
   });
-  monthRow.push('Total Hours','Total Cost','Total Revenue','Margin','NPM %');
-  data.push(monthRow);
-
-  // Row 1: Week headers
-  const weekRow = ['','','',''];
-  weeks.forEach(w=>{
-    weekRow.push(w.fullLabel+' ('+fmtWeekRange(w)+')');
-    weekRow.push('');
-    // merge alloc+hrs header per week
+  ['Total Hours','Total Cost £','Total Rev £','Margin £','NPM'].forEach((t,i)=>{
+    const c=totalColStart+i;
+    ws.getCell(1,c).value=t; ws.getCell(1,c).fill=darkFill; ws.getCell(1,c).font=whiteFont;
+    ws.getCell(1,c).alignment={horizontal:'center'}; ws.getCell(1,c).border=thinBorder;
   });
-  weekRow.push('','','','','');
-  data.push(weekRow);
 
-  // Row 2: Sub-headers
-  const subRow = ['Resource','Region','Bill/Hr','Cost/Hr'];
-  weeks.forEach(w=>{
-    subRow.push('Alloc %');
-    subRow.push('Hours ('+w.hours+'h avail)');
+  // ── ROW 2: Week headers ──
+  const r2=ws.getRow(2);
+  for(let c=1;c<=4;c++){r2.getCell(c).fill=lightGrayFill;r2.getCell(c).border=thinBorder}
+  weeks.forEach((w,wi)=>{
+    const c=5+wi*2;
+    ws.mergeCells(2,c,2,c+1);
+    const hols=ukHolidaysInWeek(w);
+    ws.getCell(2,c).value=w.fullLabel+'\n'+fmtWeekRange(w)+'\n'+w.hours+'h avail';
+    ws.getCell(2,c).font={size:8,bold:true};
+    ws.getCell(2,c).alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    ws.getCell(2,c).fill=hols.length?redFill:lightGrayFill;
+    ws.getCell(2,c).border=thinBorder;
+    ws.getCell(2,c+1).border=thinBorder;
   });
-  subRow.push('Total Hours','Total Cost £','Total Revenue £','Margin £','NPM %');
-  data.push(subRow);
+  for(let i=0;i<5;i++){ws.getCell(2,totalColStart+i).fill=lightGrayFill;ws.getCell(2,totalColStart+i).border=thinBorder}
 
-  // Row 3+: Milestone timeline
+  // ── ROW 3: Sub-headers ──
+  const r3=ws.getRow(3);
+  ['Resource','Region','Bill/Hr','Cost/Hr'].forEach((t,i)=>{
+    r3.getCell(i+1).value=t; r3.getCell(i+1).font={size:9,bold:true,color:{argb:'FF6B6960'}};
+    r3.getCell(i+1).fill=lightGrayFill; r3.getCell(i+1).border=thinBorder;
+  });
+  weeks.forEach((w,wi)=>{
+    const c=5+wi*2;
+    r3.getCell(c).value='Alloc%'; r3.getCell(c+1).value='Hours';
+    [c,c+1].forEach(cc=>{r3.getCell(cc).font={size:9,bold:true,color:{argb:'FF6B6960'}};r3.getCell(cc).fill=lightGrayFill;r3.getCell(cc).alignment={horizontal:'center'};r3.getCell(cc).border=thinBorder});
+  });
+  ['Hours','Cost £','Rev £','Margin £','NPM'].forEach((t,i)=>{
+    const c=totalColStart+i;
+    r3.getCell(c).value=t;r3.getCell(c).font={size:9,bold:true,color:{argb:'FF6B6960'}};
+    r3.getCell(c).fill=lightGrayFill;r3.getCell(c).alignment={horizontal:'center'};r3.getCell(c).border=thinBorder;
+  });
+  r2.height=40; r3.height=18;
+
+  // ── MILESTONE ROWS ──
+  let curRow=4;
   projects.forEach(proj=>{
     const pms=milestones.filter(m=>m.projectId===proj.id);
     (proj.sites||[]).forEach(site=>{
       const sms=pms.filter(m=>m.site===site);
-      const msRow=[proj.name+' / '+site,'','',''];
-      weeks.forEach(w=>{
+      const row=ws.getRow(curRow);
+      ws.mergeCells(curRow,1,curRow,4);
+      row.getCell(1).value=proj.name+' / '+site;
+      row.getCell(1).font={size:9,bold:true,italic:true,color:{argb:'FF0F6E56'}};
+      row.getCell(1).fill=tealLightFill; row.getCell(1).border=thinBorder;
+      for(let c=2;c<=4;c++){row.getCell(c).fill=tealLightFill;row.getCell(c).border=thinBorder}
+      weeks.forEach((w,wi)=>{
+        const c=5+wi*2;
         const weekMs=sms.filter(ms=>{
           if(!ms.start) return false;
           const msEnd=ms.end||ms.start;
           return ms.start<=w.end && msEnd>=w.start;
         });
-        msRow.push(weekMs.map(ms=>ms.name).join(', '));
-        msRow.push('');
+        ws.mergeCells(curRow,c,curRow,c+1);
+        if(weekMs.length){
+          row.getCell(c).value=weekMs.map(ms=>ms.name).join(', ');
+          row.getCell(c).font={size:8,bold:true,color:{argb:'FF0F6E56'}};
+          row.getCell(c).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE1F5EE'}};
+        }
+        row.getCell(c).border=thinBorder; row.getCell(c+1).border=thinBorder;
+        row.getCell(c).alignment={horizontal:'center',wrapText:true};
       });
-      msRow.push('','','','','');
-      data.push(msRow);
+      for(let i=0;i<5;i++){row.getCell(totalColStart+i).fill=tealLightFill;row.getCell(totalColStart+i).border=thinBorder}
+      row.height=22;
+      curRow++;
     });
   });
 
-  // Empty separator row
-  data.push([]);
-  const dataStartRow = data.length; // 0-indexed row where resource data starts
+  // ── SEPARATOR ROW ──
+  const sepRow=ws.getRow(curRow);
+  const lastCol=totalColStart+4;
+  for(let c=1;c<=lastCol;c++){sepRow.getCell(c).fill=tealFill;sepRow.getCell(c).border=thinBorder}
+  sepRow.height=4;
+  curRow++;
 
-  // Resource rows with formulas
+  // ── RESOURCE ROWS ──
+  const dataStartRow=curRow;
   fcResources.forEach((r,ri)=>{
-    const row = [r.name, r.region, r.billH, r.costH];
-    const rowNum = dataStartRow + ri + 1; // 1-indexed for Excel
+    const row=ws.getRow(curRow);
+    const isEven=ri%2===0;
+    const rowFill=isEven?{type:'pattern',pattern:'solid',fgColor:{argb:'FFFFFFFF'}}:lightGrayFill;
+
+    row.getCell(1).value=r.name; row.getCell(1).font=boldFont;
+    row.getCell(2).value=r.region; row.getCell(2).font=smallFont;
+    row.getCell(3).value=r.billH; row.getCell(3).numFmt='£#,##0.00';
+    row.getCell(4).value=r.costH; row.getCell(4).numFmt='£#,##0.00';
+    for(let c=1;c<=4;c++){row.getCell(c).fill=rowFill;row.getCell(c).border=thinBorder}
 
     weeks.forEach((w,wi)=>{
-      const alloc = fcWeekAlloc(r, w.key);
-      const allocCol = 4 + wi*2; // 0-indexed column for alloc%
-      const hrsCol = allocCol + 1; // hours column
-      row.push(alloc/100); // alloc as decimal for Excel %
-      // Formula: alloc% × available hours
-      const allocCellRef = XLSX.utils.encode_cell({r:rowNum-1, c:allocCol});
-      row.push({f: allocCellRef+'*'+w.hours});
+      const allocC=5+wi*2, hrsC=allocC+1;
+      const alloc=fcWeekAlloc(r,w.key);
+      const allocRef=ws.getCell(curRow,allocC);
+      allocRef.value=alloc/100; allocRef.numFmt='0%';
+      allocRef.alignment={horizontal:'center'};
+      // Color code allocation
+      if(alloc>=100) allocRef.fill=greenFill;
+      else if(alloc>=75) allocRef.fill=tealLightFill;
+      else if(alloc>0) allocRef.fill=amberFill;
+      else allocRef.fill=rowFill;
+      allocRef.font=alloc>0?{size:10,bold:true}:smallFont;
+      allocRef.border=thinBorder;
+      // Hours formula
+      const hrsRef=ws.getCell(curRow,hrsC);
+      const allocAddr=ws.getCell(curRow,allocC).address;
+      hrsRef.value={formula:allocAddr+'*'+w.hours};
+      hrsRef.numFmt='0.0';
+      hrsRef.font=normalFont; hrsRef.fill=rowFill; hrsRef.border=thinBorder;
+      hrsRef.alignment={horizontal:'center'};
     });
 
-    const lastWeekHrsCol = 4 + (weeks.length-1)*2 + 1;
-    const firstHrsCol = 5;
-    // Total hours: SUM of all hours columns
-    const hrsCols = [];
-    for(let wi=0;wi<weeks.length;wi++) hrsCols.push(XLSX.utils.encode_cell({r:rowNum-1, c:5+wi*2}));
-    row.push({f: hrsCols.join('+')});
+    // Total hours formula
+    const tHrsC=totalColStart;
+    const hrsCells=[];
+    for(let wi=0;wi<weeks.length;wi++) hrsCells.push(ws.getCell(curRow,6+wi*2).address);
+    ws.getCell(curRow,tHrsC).value={formula:hrsCells.join('+')};
+    ws.getCell(curRow,tHrsC).numFmt='0.0'; ws.getCell(curRow,tHrsC).font=boldFont;
+    ws.getCell(curRow,tHrsC).fill=rowFill; ws.getCell(curRow,tHrsC).border=thinBorder;
 
-    // Total cost: total_hours × costH
-    const totalHrsRef = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2});
-    const costHRef = XLSX.utils.encode_cell({r:rowNum-1, c:3});
-    const billHRef = XLSX.utils.encode_cell({r:rowNum-1, c:2});
-    row.push({f: totalHrsRef+'*'+costHRef}); // cost
-    row.push({f: totalHrsRef+'*'+billHRef}); // revenue
-    // Margin = rev - cost
-    const revRef = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2+2});
-    const costRef2 = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2+1});
-    row.push({f: revRef+'-'+costRef2}); // margin
-    // NPM = margin/revenue
-    const marginRef = XLSX.utils.encode_cell({r:rowNum-1, c:4+weeks.length*2+3});
-    row.push({f: 'IF('+revRef+'=0,0,'+marginRef+'/'+revRef+')'}); // npm
+    // Cost formula
+    const costC=totalColStart+1;
+    ws.getCell(curRow,costC).value={formula:ws.getCell(curRow,tHrsC).address+'*'+ws.getCell(curRow,4).address};
+    ws.getCell(curRow,costC).numFmt='£#,##0'; ws.getCell(curRow,costC).font={size:10,color:{argb:'FF993C1D'}};
+    ws.getCell(curRow,costC).fill=rowFill; ws.getCell(curRow,costC).border=thinBorder;
 
-    data.push(row);
+    // Revenue formula
+    const revC=totalColStart+2;
+    ws.getCell(curRow,revC).value={formula:ws.getCell(curRow,tHrsC).address+'*'+ws.getCell(curRow,3).address};
+    ws.getCell(curRow,revC).numFmt='£#,##0'; ws.getCell(curRow,revC).font={size:10,color:{argb:'FF0F6E56'}};
+    ws.getCell(curRow,revC).fill=rowFill; ws.getCell(curRow,revC).border=thinBorder;
+
+    // Margin formula
+    const marC=totalColStart+3;
+    ws.getCell(curRow,marC).value={formula:ws.getCell(curRow,revC).address+'-'+ws.getCell(curRow,costC).address};
+    ws.getCell(curRow,marC).numFmt='£#,##0'; ws.getCell(curRow,marC).font=boldFont;
+    ws.getCell(curRow,marC).fill=rowFill; ws.getCell(curRow,marC).border=thinBorder;
+
+    // NPM formula
+    const npmC=totalColStart+4;
+    ws.getCell(curRow,npmC).value={formula:'IF('+ws.getCell(curRow,revC).address+'=0,0,'+ws.getCell(curRow,marC).address+'/'+ws.getCell(curRow,revC).address+')'};
+    ws.getCell(curRow,npmC).numFmt='0.0%'; ws.getCell(curRow,npmC).font=boldFont;
+    ws.getCell(curRow,npmC).fill=rowFill; ws.getCell(curRow,npmC).border=thinBorder;
+
+    row.height=20;
+    curRow++;
   });
 
-  // Totals row
-  const totalsRowNum = dataStartRow + fcResources.length + 1;
-  const totRow = ['TOTAL','','',''];
+  // ── TOTALS ROW ──
+  const totR=ws.getRow(curRow);
+  totR.getCell(1).value='TOTAL ('+fcResources.length+' resources)';
+  totR.getCell(1).font={bold:true,size:11,color:{argb:'FF0F6E56'}};
+  for(let c=1;c<=4;c++){totR.getCell(c).fill=tealLightFill;totR.getCell(c).border=thinBorder}
+
   weeks.forEach((w,wi)=>{
-    // Sum alloc column (not meaningful but keep structure)
-    totRow.push('');
-    // Sum hours
-    const colLetter = XLSX.utils.encode_col(5+wi*2);
-    const firstRow = dataStartRow+1;
-    const lastRow = dataStartRow+fcResources.length;
-    totRow.push({f: 'SUM('+colLetter+firstRow+':'+colLetter+lastRow+')'});
+    const allocC=5+wi*2, hrsC=allocC+1;
+    totR.getCell(allocC).value=''; totR.getCell(allocC).fill=tealLightFill; totR.getCell(allocC).border=thinBorder;
+    const firstR=dataStartRow, lastR=curRow-1;
+    totR.getCell(hrsC).value={formula:'SUM('+ws.getCell(firstR,hrsC).address+':'+ws.getCell(lastR,hrsC).address+')'};
+    totR.getCell(hrsC).numFmt='0.0'; totR.getCell(hrsC).font=boldFont;
+    totR.getCell(hrsC).fill=tealLightFill; totR.getCell(hrsC).border=thinBorder;
   });
-  // Total hrs/cost/rev/margin
-  for(let ci=0;ci<4;ci++){
-    const colLetter = XLSX.utils.encode_col(4+weeks.length*2+ci);
-    const firstRow = dataStartRow+1;
-    const lastRow = dataStartRow+fcResources.length;
-    totRow.push({f: 'SUM('+colLetter+firstRow+':'+colLetter+lastRow+')'});
+
+  for(let i=0;i<4;i++){
+    const c=totalColStart+i;
+    const firstR=dataStartRow, lastR=curRow-1;
+    totR.getCell(c).value={formula:'SUM('+ws.getCell(firstR,c).address+':'+ws.getCell(lastR,c).address+')'};
+    totR.getCell(c).numFmt=i===0?'0.0':'£#,##0';
+    totR.getCell(c).font={bold:true,size:11,color:{argb:'FF0F6E56'}};
+    totR.getCell(c).fill=tealLightFill; totR.getCell(c).border=thinBorder;
   }
-  // NPM for totals
-  const tRevRef = XLSX.utils.encode_cell({r:totalsRowNum-1, c:4+weeks.length*2+2});
-  const tMarRef = XLSX.utils.encode_cell({r:totalsRowNum-1, c:4+weeks.length*2+3});
-  totRow.push({f: 'IF('+tRevRef+'=0,0,'+tMarRef+'/'+tRevRef+')'});
-  data.push(totRow);
+  const npmTC=totalColStart+4;
+  const tRevAddr=ws.getCell(curRow,totalColStart+2).address;
+  const tMarAddr=ws.getCell(curRow,totalColStart+3).address;
+  totR.getCell(npmTC).value={formula:'IF('+tRevAddr+'=0,0,'+tMarAddr+'/'+tRevAddr+')'};
+  totR.getCell(npmTC).numFmt='0.0%'; totR.getCell(npmTC).font={bold:true,size:11,color:{argb:'FF0F6E56'}};
+  totR.getCell(npmTC).fill=tealLightFill; totR.getCell(npmTC).border=thinBorder;
+  totR.height=24;
 
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!merges'] = merges;
+  // ── COLUMN WIDTHS ──
+  ws.getColumn(1).width=22; ws.getColumn(2).width=7; ws.getColumn(3).width=9; ws.getColumn(4).width=9;
+  for(let wi=0;wi<weeks.length;wi++){ws.getColumn(5+wi*2).width=8;ws.getColumn(6+wi*2).width=8}
+  for(let i=0;i<5;i++) ws.getColumn(totalColStart+i).width=12;
 
-  // Format alloc% columns as percentage
-  const range = XLSX.utils.decode_range(ws['!ref']);
-  for(let R=dataStartRow;R<=range.e.r;R++){
-    for(let wi=0;wi<weeks.length;wi++){
-      const cellRef = XLSX.utils.encode_cell({r:R, c:4+wi*2});
-      if(ws[cellRef]) ws[cellRef].z = '0%';
-    }
-    // NPM column
-    const npmRef = XLSX.utils.encode_cell({r:R, c:4+weeks.length*2+4});
-    if(ws[npmRef]) ws[npmRef].z = '0.0%';
-  }
-
-  // Column widths
-  const colWidths = [{wch:20},{wch:6},{wch:8},{wch:8}];
-  weeks.forEach(()=>{ colWidths.push({wch:8}); colWidths.push({wch:10}); });
-  colWidths.push({wch:10},{wch:12},{wch:12},{wch:10},{wch:8});
-  ws['!cols'] = colWidths;
-
-  XLSX.utils.book_append_sheet(wb, ws, 'Weekly Forecast');
-  XLSX.writeFile(wb, 'notXL-Weekly-Forecast-'+new Date().toISOString().slice(0,10)+'.xlsx');
+  // ── DOWNLOAD ──
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='notXL-Weekly-Forecast-'+new Date().toISOString().slice(0,10)+'.xlsx';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 function buildFcSummary(){
