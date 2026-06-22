@@ -306,13 +306,27 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="ntab" onclick="showSec('audit')">Audit</button>
     </div>
     <div class="nav-right">
-      <button class="btn" onclick="openVersionHistory()">⏱ History</button>
-      <button class="btn" onclick="triggerReset()">↺ Reset</button>
-      <button class="btn" onclick="downloadTemplate()">⬇ Template</button>
-      <label class="btn" style="cursor:pointer">⬆ Import <input type="file" id="xl-upload" accept=".xlsx,.xls" style="display:none" onchange="handleXlUpload(this)"></label>
-      <button class="btn" onclick="openModal('member')">+ Member</button>
-      <button class="btn" onclick="openModal('project')">+ Project</button>
-      <button class="btn btn-primary" onclick="openModal('milestone')">+ Milestone</button>
+      <!-- + New dropdown -->
+      <div style="position:relative" id="add-menu-wrap">
+        <button class="btn btn-primary" onclick="document.getElementById('add-menu').classList.toggle('open')">+ New ▾</button>
+        <div class="user-menu" id="add-menu" style="right:0;top:36px;min-width:160px">
+          <div class="user-menu-item" onclick="openModal('project');el('add-menu').classList.remove('open')">📁 Project</div>
+          <div class="user-menu-item" onclick="openModal('milestone');el('add-menu').classList.remove('open')">🎯 Milestone</div>
+          <div class="user-menu-item" onclick="openModal('member');el('add-menu').classList.remove('open')">👤 Team Member</div>
+        </div>
+      </div>
+      <!-- Tools dropdown -->
+      <div style="position:relative" id="tools-menu-wrap">
+        <button class="btn" onclick="document.getElementById('tools-menu').classList.toggle('open')">⚙ Tools ▾</button>
+        <div class="user-menu" id="tools-menu" style="right:0;top:36px;min-width:180px">
+          <div class="user-menu-item" onclick="openVersionHistory();el('tools-menu').classList.remove('open')">⏱ Version History</div>
+          <div class="user-menu-item" onclick="downloadTemplate();el('tools-menu').classList.remove('open')">⬇ Download Template</div>
+          <div class="user-menu-item" onclick="el('xl-upload').click();el('tools-menu').classList.remove('open')">⬆ Import Excel</div>
+          <div class="user-menu-item" onclick="triggerReset();el('tools-menu').classList.remove('open')" style="color:var(--red)">↺ Reset All Data</div>
+        </div>
+      </div>
+      <input type="file" id="xl-upload" accept=".xlsx,.xls" style="display:none" onchange="handleXlUpload(this)">
+      <!-- User menu -->
       <div style="position:relative">
         <div class="user-badge" onclick="toggleUserMenu()" id="user-badge">
           <span id="user-avatar" class="av" style="background:var(--teal);color:#fff;width:22px;height:22px;font-size:9px">?</span>
@@ -4526,6 +4540,8 @@ function toggleUserMenu(){
 }
 document.addEventListener('click',e=>{
   if(!e.target.closest('#user-badge')&&!e.target.closest('#user-menu')) el('user-menu')?.classList.remove('open');
+  if(!e.target.closest('#add-menu-wrap')) el('add-menu')?.classList.remove('open');
+  if(!e.target.closest('#tools-menu-wrap')) el('tools-menu')?.classList.remove('open');
 });
 
 function logoutUser(){
