@@ -85,8 +85,11 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 .g-row:hover .g-cell{background:#F5F4F0}
 .today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:6;pointer-events:none}
 .bar-wrap{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
-.gbar{position:absolute;border-radius:5px;cursor:pointer;transition:filter .15s}
+.gbar{position:absolute;border-radius:5px;cursor:grab;transition:filter .15s}
 .gbar:hover{filter:brightness(.88)}
+.gbar:active{cursor:grabbing}
+.gbar-resize{position:absolute;top:0;width:6px;height:100%;cursor:ew-resize;z-index:8}
+.gbar-resize:hover{background:rgba(0,0,0,.15);border-radius:3px}
 .gbar-lbl{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.2)}
 .gbar-out{position:absolute;top:50%;transform:translateY(-50%);font-size:10px;font-weight:500;white-space:nowrap;pointer-events:none;color:var(--t2)}
 .legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
@@ -1257,9 +1260,13 @@ function buildGantt(){
           });
         });
         if(show){
-          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${cW}px;height:${BH}px;border-radius:5px;background:${ms.color};opacity:.22;cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)"></div>`;
-          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${pW}px;height:${BH}px;border-radius:5px;background:${ms.color};cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)"></div>`;
-          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${cW}px;height:${BH}px;border-radius:5px;border:2px solid ${ms.color};box-sizing:border-box;cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${ms.id}'),60)"></div>`;
+          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${cW}px;height:${BH}px;border-radius:5px;background:${ms.color};opacity:.22"></div>`;
+          h+=`<div style="position:absolute;top:${BT}px;left:${cL}px;width:${pW}px;height:${BH}px;border-radius:5px;background:${ms.color}"></div>`;
+          h+=`<div class="gbar" data-msid="${ms.id}" style="top:${BT}px;left:${cL}px;width:${cW}px;height:${BH}px;border:2px solid ${ms.color};box-sizing:border-box"
+            onmousedown="ganttDragStart(event,'${ms.id}','move')">
+            <div class="gbar-resize" style="left:0" onmousedown="event.stopPropagation();ganttDragStart(event,'${ms.id}','resize-left')"></div>
+            <div class="gbar-resize" style="right:0" onmousedown="event.stopPropagation();ganttDragStart(event,'${ms.id}','resize-right')"></div>
+          </div>`;
           if(lblFits) h+=`<div class="gbar-lbl" style="left:${cL+8}px;width:${cW-16}px;color:${ms.progress>50?'#fff':ms.color}">${ms.name}</div>`;
           else h+=`<div class="gbar-out" style="left:${cL+cW+5}px">${ms.name}</div>`;
           if(gRowH==='comfort'&&cW>80) h+=`<div style="position:absolute;bottom:2px;left:${cL+4}px;font-size:9px;color:${ms.progress>60?'rgba(255,255,255,.8)':ms.color};white-space:nowrap;pointer-events:none">${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' → '+fmtS(ms.end):''}</div>`;
@@ -1270,6 +1277,95 @@ function buildGantt(){
   });
   h+=`</div>`;
   cont.innerHTML=h;
+  // Store coordinate system for drag
+  window._ganttCoord={pStart,totalDays,colCount:cols.length,W};
+}
+
+// ─── GANTT DRAG & DROP ──────────────────────────────────────────────────────
+let _gDrag=null;
+
+function ganttPxToDate(px){
+  const gc=window._ganttCoord; if(!gc) return null;
+  const dayOffset=px/(gc.colCount*gc.W)*gc.totalDays;
+  const d=new Date(gc.pStart); d.setDate(d.getDate()+Math.round(dayOffset));
+  return d.toISOString().slice(0,10);
+}
+
+function ganttDragStart(e,msId,mode){
+  e.preventDefault();
+  const ms=milestones.find(m=>m.id===msId); if(!ms) return;
+  const bar=e.target.closest('.gbar'); if(!bar) return;
+  const rect=bar.getBoundingClientRect();
+  const parentRect=bar.parentElement.getBoundingClientRect();
+  _gDrag={
+    msId, mode, bar,
+    startX:e.clientX,
+    origLeft:parseFloat(bar.style.left),
+    origWidth:parseFloat(bar.style.width),
+    parentLeft:parentRect.left,
+    parentWidth:parentRect.width,
+    origMsStart:ms.start,
+    origMsEnd:ms.end||ms.start
+  };
+  document.addEventListener('mousemove',ganttDragMove);
+  document.addEventListener('mouseup',ganttDragEnd);
+}
+
+function ganttDragMove(e){
+  if(!_gDrag) return;
+  const dx=e.clientX-_gDrag.startX;
+  const bar=_gDrag.bar;
+
+  if(_gDrag.mode==='move'){
+    bar.style.left=(_gDrag.origLeft+dx)+'px';
+  } else if(_gDrag.mode==='resize-right'){
+    const newW=Math.max(10,_gDrag.origWidth+dx);
+    bar.style.width=newW+'px';
+  } else if(_gDrag.mode==='resize-left'){
+    const newL=_gDrag.origLeft+dx;
+    const newW=Math.max(10,_gDrag.origWidth-dx);
+    bar.style.left=newL+'px';
+    bar.style.width=newW+'px';
+  }
+}
+
+function ganttDragEnd(e){
+  document.removeEventListener('mousemove',ganttDragMove);
+  document.removeEventListener('mouseup',ganttDragEnd);
+  if(!_gDrag) return;
+  const dx=e.clientX-_gDrag.startX;
+  if(Math.abs(dx)<3){ _gDrag=null; return; } // click, not drag
+
+  const ms=milestones.find(m=>m.id===_gDrag.msId);
+  if(!ms){ _gDrag=null; return; }
+
+  const oldStart=ms.start, oldEnd=ms.end||ms.start;
+
+  if(_gDrag.mode==='move'){
+    const newLeft=_gDrag.origLeft+dx;
+    const newStart=ganttPxToDate(newLeft);
+    const duration=Math.round((new Date(oldEnd+'T00:00')-new Date(oldStart+'T00:00'))/864e5);
+    const endD=new Date(newStart+'T00:00'); endD.setDate(endD.getDate()+duration);
+    const newEnd=endD.toISOString().slice(0,10);
+    ms.start=newStart;
+    ms.end=newEnd;
+  } else if(_gDrag.mode==='resize-right'){
+    const newRight=_gDrag.origLeft+Math.max(10,_gDrag.origWidth+dx);
+    ms.end=ganttPxToDate(newRight);
+  } else if(_gDrag.mode==='resize-left'){
+    const newLeft=_gDrag.origLeft+dx;
+    ms.start=ganttPxToDate(newLeft);
+  }
+
+  if(ms.start!==oldStart||ms.end!==oldEnd){
+    logAudit('edited','milestone',ms.name,[
+      {field:'Start date',from:oldStart,to:ms.start},
+      {field:'End date',from:oldEnd,to:ms.end}
+    ]);
+  }
+
+  _gDrag=null;
+  renderAll();
 }
 
 // ─── HIERARCHY ───────────────────────────────────────────────────────────────
