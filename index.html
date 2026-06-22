@@ -306,6 +306,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="ntab" onclick="showSec('audit')">Audit</button>
     </div>
     <div class="nav-right">
+      <button class="btn" onclick="openVersionHistory()">⏱ History</button>
       <button class="btn" onclick="triggerReset()">↺ Reset</button>
       <button class="btn" onclick="downloadTemplate()">⬇ Template</button>
       <label class="btn" style="cursor:pointer">⬆ Import <input type="file" id="xl-upload" accept=".xlsx,.xls" style="display:none" onchange="handleXlUpload(this)"></label>
@@ -914,6 +915,25 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   <div class="modal-ftr">
     <button class="btn" onclick="closeModal('member')">Cancel</button>
     <button class="btn btn-primary" onclick="saveMember()">Save member</button>
+  </div>
+</div>
+</div>
+
+<!-- VERSION HISTORY MODAL -->
+<div class="modal-bg" id="modal-vhistory" onclick="if(event.target===this)closeModal('vhistory')">
+<div class="modal" style="width:600px">
+  <div class="modal-hdr">
+    <div>
+      <h3>Version History</h3>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">Browse and restore previous states. Snapshots are saved automatically.</div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('vhistory')">✕</button>
+  </div>
+  <div class="modal-body" style="padding:0">
+    <div id="vh-list" style="max-height:450px;overflow-y:auto"></div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('vhistory')">Close</button>
   </div>
 </div>
 </div>
@@ -4235,6 +4255,36 @@ function getStateObj(){
   return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS,rateCards:RATE_CARDS,invoiceData};
 }
 
+const VERSIONS_COL = db.collection('versions');
+let lastSnapshotTime = 0;
+const SNAPSHOT_INTERVAL = 30000; // min 30s between snapshots
+
+function saveSnapshot(){
+  const now=Date.now();
+  if(now-lastSnapshotTime < SNAPSHOT_INTERVAL) return;
+  lastSnapshotTime=now;
+  const snap={
+    timestamp: new Date().toISOString(),
+    user: currentUser?.name||'Unknown',
+    summary: buildSnapshotSummary(),
+    data: getStateObj()
+  };
+  VERSIONS_COL.add(snap).then(()=>{
+    console.log('Snapshot saved');
+    // Keep max 50 versions — delete oldest
+    VERSIONS_COL.orderBy('timestamp','asc').get().then(s=>{
+      if(s.size>50){
+        const toDelete=s.docs.slice(0,s.size-50);
+        toDelete.forEach(d=>d.ref.delete());
+      }
+    });
+  }).catch(e=>console.warn('Snapshot save failed:',e));
+}
+
+function buildSnapshotSummary(){
+  return `${projects.length} projects · ${milestones.length} milestones · ${teams.length} team · ${fcResources.length} forecast`;
+}
+
 function saveData(){
   if(!firebaseReady){
     console.log('Skipping save — waiting for Firestore initial load');
@@ -4242,6 +4292,8 @@ function saveData(){
   }
   const data = getStateObj();
   try{ localStorage.setItem(SK,JSON.stringify(data)) }catch(e){}
+  // Save version snapshot
+  saveSnapshot();
   // Debounced Firestore save
   if(saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(()=>{
@@ -4249,6 +4301,76 @@ function saveData(){
       console.log('Saved to Firestore');
     }).catch(e=>console.warn('Firestore save failed:',e));
   }, 1500);
+}
+
+async function openVersionHistory(){
+  const list=el('vh-list');
+  list.innerHTML='<div style="padding:20px;text-align:center;color:var(--t3)">Loading versions…</div>';
+  el('modal-vhistory').classList.add('open');
+
+  try{
+    const snap=await VERSIONS_COL.orderBy('timestamp','desc').limit(50).get();
+    if(snap.empty){
+      list.innerHTML='<div style="padding:30px;text-align:center;color:var(--t3)">No version history yet. Snapshots are saved automatically as you work.</div>';
+      return;
+    }
+
+    let h='';
+    snap.docs.forEach((doc,i)=>{
+      const v=doc.data();
+      const dt=new Date(v.timestamp);
+      const ts=dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' '+
+               dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const isFirst=i===0;
+      h+=`<div style="padding:12px 20px;border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:12px;${isFirst?'background:var(--tl)':''}" onmouseover="if(!${isFirst})this.style.background='var(--s2)'" onmouseout="if(!${isFirst})this.style.background=''">
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:600">${ts}${isFirst?' <span style="font-size:10px;color:var(--teal);font-weight:700">CURRENT</span>':''}</div>
+          <div style="font-size:11px;color:var(--t3);margin-top:2px">${v.summary||'No summary'}</div>
+          <div style="font-size:10px;color:var(--t3);margin-top:1px">by ${v.user||'Unknown'}</div>
+        </div>
+        ${!isFirst?`<button class="btn btn-sm" onclick="previewVersion('${doc.id}')">Preview</button>
+        <button class="btn btn-sm btn-primary" onclick="restoreVersion('${doc.id}')">Restore</button>`:''}
+      </div>`;
+    });
+    list.innerHTML=h;
+  }catch(e){
+    list.innerHTML=`<div style="padding:20px;color:var(--red)">Failed to load versions: ${e.message}</div>`;
+  }
+}
+
+async function previewVersion(vId){
+  try{
+    const doc=await VERSIONS_COL.doc(vId).get();
+    if(!doc.exists){ alert('Version not found.'); return; }
+    const v=doc.data();
+    const d=v.data;
+    const summary=`Version from ${new Date(v.timestamp).toLocaleString('en-GB')}\n\n` +
+      `Projects: ${(d.projects||[]).length}\n` +
+      `Milestones: ${(d.milestones||[]).length}\n` +
+      `Team members: ${(d.teams||[]).length}\n` +
+      `Forecast resources: ${(d.fcResources||[]).length}\n` +
+      `Audit entries: ${(d.auditLog||[]).length}\n` +
+      `Invoice rows: ${(d.invoiceData||[]).length}`;
+    alert(summary);
+  }catch(e){ alert('Failed to load version: '+e.message); }
+}
+
+async function restoreVersion(vId){
+  if(!confirm('Restore this version? Your current state will be saved as a snapshot first.')) return;
+  try{
+    // Save current state as a snapshot first
+    lastSnapshotTime=0;
+    saveSnapshot();
+
+    const doc=await VERSIONS_COL.doc(vId).get();
+    if(!doc.exists){ alert('Version not found.'); return; }
+    const v=doc.data();
+    applyState(v.data);
+    logAudit('edited','system','Version restored',[{field:'Restored from',to:new Date(v.timestamp).toLocaleString('en-GB')}]);
+    renderAll();
+    closeModal('vhistory');
+    alert('Version restored successfully.');
+  }catch(e){ alert('Failed to restore: '+e.message); }
 }
 
 function applyState(d){
