@@ -936,6 +936,26 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 </div>
 </div>
 
+<!-- LEAVE CONFLICT MODAL -->
+<div class="modal-bg" id="modal-leaveconflict" onclick="if(event.target===this)closeModal('leaveconflict')">
+<div class="modal" style="width:540px">
+  <div class="modal-hdr">
+    <div>
+      <h3>Leave Conflicts Detected</h3>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">This resource has forecast allocations during their leave periods. Select which weeks to clear.</div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('leaveconflict')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div id="lc-rows" style="max-height:350px;overflow-y:auto"></div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('leaveconflict')">Keep allocations</button>
+    <button class="btn btn-danger" onclick="applyLeaveConflictClear()">Clear selected weeks</button>
+  </div>
+</div>
+</div>
+
 <!-- VERSION HISTORY MODAL -->
 <div class="modal-bg" id="modal-vhistory" onclick="if(event.target===this)closeModal('vhistory')">
 <div class="modal" style="width:600px">
@@ -3525,14 +3545,78 @@ function addLeaveRow(){
   renderLeaveRows();
 }
 
+let _leaveConflicts = [];
+
 function saveLeavePlan(){
   const r = fcResources.find(x=>x.id===editingLeaveResId);
   if(!r) return;
   const oldCount = (r.fcLeaves||[]).length;
-  r.fcLeaves = leaveRows.filter(l=>l.start&&l.end).map(l=>({...l, id:l.id||uid()}));
+  const newLeaves = leaveRows.filter(l=>l.start&&l.end).map(l=>({...l, id:l.id||uid()}));
+  r.fcLeaves = newLeaves;
   logAudit('edited','leave',r.name,[{field:'Leave entries',from:oldCount+' entries',to:r.fcLeaves.length+' entries'}]);
   saveData();
   closeModal('leaveplan');
+
+  // Check for forecast conflicts
+  const conflicts = [];
+  newLeaves.forEach(l => {
+    FC_WEEKS.forEach(w => {
+      if(w.start > l.end || w.end < l.start) return;
+      const alloc = fcWeekAlloc(r, w.key);
+      if(alloc > 0){
+        conflicts.push({weekKey: w.key, weekLabel: w.fullLabel, dateRange: fmtWeekRange(w), alloc, leaveStart: l.start, leaveEnd: l.end, reason: l.reason || l.type || 'Leave'});
+      }
+    });
+  });
+
+  if(conflicts.length){
+    _leaveConflicts = conflicts;
+    showLeaveConflictModal(r);
+  } else {
+    buildLeaveCalendar();
+    buildForecast();
+    buildGantt();
+  }
+}
+
+function showLeaveConflictModal(r){
+  let h = `<div style="padding:8px 0;margin-bottom:8px;font-size:12px">
+    <strong>${r.name}</strong> has <strong style="color:var(--red)">${_leaveConflicts.length}</strong> week(s) with forecast allocations during leave:
+  </div>`;
+  _leaveConflicts.forEach((c, i) => {
+    h += `<label style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--b1);border-radius:var(--rsm);margin-bottom:4px;cursor:pointer;background:var(--rl)" onmouseover="this.style.background='#fde2e2'" onmouseout="this.style.background='var(--rl)'">
+      <input type="checkbox" id="lc-${i}" checked style="accent-color:var(--red)">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600">${c.weekLabel}</div>
+        <div style="font-size:10px;color:var(--t3)">${c.dateRange}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;font-weight:600;color:var(--red)">${c.alloc}% allocated</div>
+        <div style="font-size:10px;color:var(--t3)">${c.reason}</div>
+      </div>
+    </label>`;
+  });
+  el('lc-rows').innerHTML = h;
+  el('modal-leaveconflict').classList.add('open');
+}
+
+function applyLeaveConflictClear(){
+  const r = fcResources.find(x=>x.id===editingLeaveResId);
+  if(!r) return;
+  let cleared = 0;
+  _leaveConflicts.forEach((c, i) => {
+    const cb = el('lc-' + i);
+    if(cb && cb.checked){
+      if(r.weeklyAlloc) delete r.weeklyAlloc[c.weekKey];
+      cleared++;
+    }
+  });
+  if(cleared){
+    logAudit('edited','forecast',r.name + ' (leave conflict)',[{field:'Cleared weeks',to:cleared + ' weeks cleared due to leave'}]);
+  }
+  _leaveConflicts = [];
+  closeModal('leaveconflict');
+  saveData();
   buildLeaveCalendar();
   buildForecast();
   buildGantt();
