@@ -942,7 +942,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   <div class="modal-hdr">
     <div>
       <h3>Leave Conflicts Detected</h3>
-      <div style="font-size:11px;color:var(--t3);margin-top:2px">This resource has forecast allocations during their leave periods. Select which weeks to clear.</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px">Resources have forecast allocations during leave or public holidays. Select which to clear.</div>
     </div>
     <button class="btn-icon" onclick="closeModal('leaveconflict')">✕</button>
   </div>
@@ -3025,6 +3025,7 @@ function buildFcWeekly(){
       <button class="btn btn-sm" onclick="fcExpandAllWeekly(false)">▲ Collapse all</button>
       <button class="btn btn-sm" onclick="openBulkAllocModal()">⚡ Bulk Allocate</button>
       <button class="btn btn-sm" onclick="openClearAllocModal()" style="color:var(--red)">🗑 Clear Allocations</button>
+      <button class="btn btn-sm" onclick="checkAllLeaveConflicts()" style="color:var(--amber)">⚠ Check Leave Conflicts</button>
       <button class="btn btn-sm" onclick="exportWeeklyForecastXl()">⬇ Export Excel</button>
     </div>
   </div>`;
@@ -3564,7 +3565,7 @@ function saveLeavePlan(){
       if(w.start > l.end || w.end < l.start) return;
       const alloc = fcWeekAlloc(r, w.key);
       if(alloc > 0){
-        conflicts.push({weekKey: w.key, weekLabel: w.fullLabel, dateRange: fmtWeekRange(w), alloc, leaveStart: l.start, leaveEnd: l.end, reason: l.reason || l.type || 'Leave'});
+        conflicts.push({resId: r.id, resName: r.name, weekKey: w.key, weekLabel: w.fullLabel, dateRange: fmtWeekRange(w), alloc, reason: l.reason || l.type || 'Leave'});
       }
     });
   });
@@ -3601,18 +3602,19 @@ function showLeaveConflictModal(r){
 }
 
 function applyLeaveConflictClear(){
-  const r = fcResources.find(x=>x.id===editingLeaveResId);
-  if(!r) return;
   let cleared = 0;
   _leaveConflicts.forEach((c, i) => {
     const cb = el('lc-' + i);
     if(cb && cb.checked){
-      if(r.weeklyAlloc) delete r.weeklyAlloc[c.weekKey];
-      cleared++;
+      const r = fcResources.find(x=>x.id===c.resId);
+      if(r && r.weeklyAlloc){
+        delete r.weeklyAlloc[c.weekKey];
+        cleared++;
+      }
     }
   });
   if(cleared){
-    logAudit('edited','forecast',r.name + ' (leave conflict)',[{field:'Cleared weeks',to:cleared + ' weeks cleared due to leave'}]);
+    logAudit('edited','forecast','Leave conflict clear',[{field:'Cleared',to:cleared + ' week(s) cleared due to leave/holidays'}]);
   }
   _leaveConflicts = [];
   closeModal('leaveconflict');
@@ -3620,6 +3622,60 @@ function applyLeaveConflictClear(){
   buildLeaveCalendar();
   buildForecast();
   buildGantt();
+}
+
+function checkAllLeaveConflicts(){
+  const conflicts = [];
+  fcResources.forEach(r => {
+    FC_WEEKS.forEach(w => {
+      const alloc = fcWeekAlloc(r, w.key);
+      if(alloc <= 0) return;
+      // Check personal leave
+      const personalLeave = fcLeaveInWeek(r, w);
+      // Check public holidays
+      const holidays = ukHolidaysInWeek(w);
+      if(personalLeave.length || holidays.length){
+        const reasons = [];
+        if(holidays.length) reasons.push('🏖 ' + holidays.map(h=>h.name).join(', '));
+        if(personalLeave.length) reasons.push('⚠ ' + personalLeave.map(l=>l.reason||l.type||'Leave').join(', '));
+        conflicts.push({
+          resId: r.id, resName: r.name,
+          weekKey: w.key, weekLabel: w.fullLabel, dateRange: fmtWeekRange(w),
+          alloc, reason: reasons.join(' · ')
+        });
+      }
+    });
+  });
+
+  if(!conflicts.length){
+    alert('No leave or holiday conflicts found — all clear!');
+    return;
+  }
+
+  _leaveConflicts = conflicts;
+
+  let h = `<div style="padding:8px 0;margin-bottom:8px;font-size:12px">
+    Found <strong style="color:var(--red)">${conflicts.length}</strong> week(s) across <strong>${new Set(conflicts.map(c=>c.resId)).size}</strong> resource(s) with allocations during leave/holidays:
+  </div>`;
+
+  let lastRes = '';
+  conflicts.forEach((c, i) => {
+    if(c.resName !== lastRes){
+      lastRes = c.resName;
+      h += `<div style="font-size:11px;font-weight:700;color:var(--tx);padding:8px 0 4px;border-top:1px solid var(--b1);margin-top:4px">${c.resName}</div>`;
+    }
+    h += `<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--b1);border-radius:var(--rsm);margin-bottom:3px;cursor:pointer;background:var(--rl)" onmouseover="this.style.background='#fde2e2'" onmouseout="this.style.background='var(--rl)'">
+      <input type="checkbox" id="lc-${i}" checked style="accent-color:var(--red)">
+      <div style="flex:1">
+        <div style="font-size:11px;font-weight:600">${c.weekLabel} <span style="font-weight:400;color:var(--t3)">${c.dateRange}</span></div>
+        <div style="font-size:10px;color:var(--t3)">${c.reason}</div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--red)">${c.alloc}%</div>
+    </label>`;
+  });
+
+  el('lc-rows').innerHTML = h;
+  el('modal-leaveconflict').classList.add('open');
 }
 
 // ── LEAVE CALENDAR VIEW ───────────────────────────────────────────────────
