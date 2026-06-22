@@ -1617,6 +1617,13 @@ function saveMember(){
     teams.push({id:uid(),name,role,email,color:selMemCol.c,assignments,modules,costRate,billRate,leaves});
     logAudit('created','member',name,[{field:'Name',to:name},{field:'Role',to:role},{field:'Email',to:email}]);
   }
+  // Auto-sync to forecast — add if not already there
+  const existsInFc = fcResources.find(r=>r.name.toLowerCase().trim()===name.toLowerCase().trim());
+  if(!existsInFc){
+    fcResources.push({id:uid(),name,team:'',role,region:'UK',billD:billRate*8,billH:billRate,costH:costRate,weeklyAlloc:{},fcLeaves:[]});
+  } else {
+    existsInFc.role=role; existsInFc.billH=billRate; existsInFc.costH=costRate; existsInFc.billD=billRate*8;
+  }
   closeModal('member'); renderAll();
 }
 
@@ -1720,8 +1727,17 @@ function buildTeam(){
 
 function editTeamField(id, field, val){
   const m=teams.find(t=>t.id===id); if(!m) return;
+  const oldName=m.name;
   if(field==='costRate'||field==='billRate'){ m[field]=parseFloat(val)||0; }
   else { m[field]=(val||'').trim(); }
+  // Sync to forecast
+  const fcMatch=fcResources.find(r=>r.name.toLowerCase().trim()===oldName.toLowerCase().trim());
+  if(fcMatch){
+    if(field==='name') fcMatch.name=m.name;
+    if(field==='role') fcMatch.role=m.role;
+    if(field==='costRate'){ fcMatch.costH=m.costRate; }
+    if(field==='billRate'){ fcMatch.billH=m.billRate; fcMatch.billD=m.billRate*8; }
+  }
   saveData(); buildTeam();
 }
 
