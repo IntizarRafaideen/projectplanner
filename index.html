@@ -602,6 +602,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
     <h1>Resource Forecast</h1>
     <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
       <select id="fc-view" onchange="buildForecast()" class="dyn-select">
+        <option value="dashboard">📊 Dashboard</option>
         <option value="weekly">Weekly breakdown</option>
         <option value="summary">Summary view</option>
         <option value="monthly">Monthly breakdown</option>
@@ -624,6 +625,9 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 
   <!-- KPI row -->
   <div class="stats-row" id="fc-kpis" style="margin-bottom:16px"></div>
+
+  <!-- Project KPIs -->
+  <div id="fc-proj-kpis" style="margin-bottom:16px"></div>
 
   <!-- Monthly NPM bar -->
   <div id="fc-npm-bar" style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px;margin-bottom:16px"></div>
@@ -1930,6 +1934,53 @@ function buildForecast(){
     {sl:'Resources',sv:fcResources.length,ss:'In forecast'},
   ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
 
+  // Project-wise KPIs
+  const projKpiEl=el('fc-proj-kpis');
+  if(projKpiEl){
+    // Rollup hours/cost/rev by project/site across all weeks
+    const projRollup={};
+    fcResources.forEach(r=>{
+      FC_WEEKS.forEach(w=>{
+        fcWeekEntries(r,w.key).forEach(e=>{
+          if(!e.pct) return;
+          const k=(e.projectId||'')+'|'+(e.site||'');
+          if(!projRollup[k]) projRollup[k]={projectId:e.projectId,site:e.site,hours:0,cost:0,revenue:0,resources:new Set()};
+          const hrs=Math.round((e.pct/100)*w.hours*10)/10;
+          projRollup[k].hours+=hrs;
+          projRollup[k].cost+=hrs*r.costH;
+          projRollup[k].revenue+=hrs*r.billH;
+          projRollup[k].resources.add(r.name);
+        });
+      });
+    });
+    const projRows=Object.values(projRollup).sort((a,b)=>b.revenue-a.revenue);
+    if(projRows.length){
+      let pk=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">`;
+      projRows.forEach(pr=>{
+        const p=projects.find(x=>x.id===pr.projectId);
+        const label=p?(pr.site?p.name+' / '+pr.site:p.name):'Unassigned';
+        const color=p?.color||'var(--t3)';
+        const margin=pr.revenue-pr.cost;
+        const npm=pr.revenue>0?margin/pr.revenue:0;
+        pk+=`<div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--r);padding:12px 14px;border-left:3px solid ${color}">
+          <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:${color}">${label}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+            <div><span style="color:var(--t3)">Revenue</span><br><strong style="color:var(--teal)">£${fc2(pr.revenue)}</strong></div>
+            <div><span style="color:var(--t3)">Cost</span><br><strong style="color:#993C1D">£${fc2(pr.cost)}</strong></div>
+            <div><span style="color:var(--t3)">Margin</span><br><strong style="color:${margin>=0?'var(--green)':'var(--red)'}">£${fc2(margin)}</strong></div>
+            <div><span style="color:var(--t3)">NPM</span><br><strong><span style="padding:1px 6px;border-radius:10px;background:${npmBg(npm)};color:${npmCol(npm)}">${fcp(npm)}</span></strong></div>
+            <div><span style="color:var(--t3)">Hours</span><br><strong>${fc1(pr.hours)}</strong></div>
+            <div><span style="color:var(--t3)">Resources</span><br><strong>${pr.resources.size}</strong></div>
+          </div>
+        </div>`;
+      });
+      pk+=`</div>`;
+      projKpiEl.innerHTML=pk;
+    } else {
+      projKpiEl.innerHTML='';
+    }
+  }
+
   // Timeline is now embedded in the weekly table — hide the separate panel
   el('fc-npm-bar').innerHTML='';
 
@@ -1951,7 +2002,8 @@ function buildForecast(){
     siteFilter.innerHTML='<option value="">All sites</option>'+allSites.map(s=>`<option value="${s}"${s===cv?' selected':''}>${s}</option>`).join('');
   }
 
-  if(view==='summary') buildFcSummary();
+  if(view==='dashboard') buildFcDashboard();
+  else if(view==='summary') buildFcSummary();
   else if(view==='monthly') buildFcMonthly();
   else if(view==='weekly') buildFcWeekly();
   else if(view==='byproject') buildFcByProject();
@@ -2543,6 +2595,156 @@ async function exportWeeklyForecastXl(){
   a.download='notXL-Weekly-Forecast-'+new Date().toISOString().slice(0,10)+'.xlsx';
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// ── FORECAST DASHBOARD ──────────────────────────────────────────────────────
+let dbSortMode = 'alloc-desc';
+function setDbSort(val){ dbSortMode=val; buildFcDashboard(); }
+
+function buildFcDashboard(){
+  if(!fcResources.length||!FC_MONTHS.length){
+    el('fc-main').innerHTML='<div class="empty" style="padding:48px">No forecast data yet.</div>'; return;
+  }
+  el('fc-npm-bar').innerHTML='';
+
+  // Sort resources
+  const sorted=[...fcResources];
+  const avgAllocOf=r=>FC_MONTHS.length?FC_MONTHS.reduce((s,m)=>s+fcMonthAlloc(r,m.key),0)/FC_MONTHS.length:0;
+  if(dbSortMode==='alloc-desc') sorted.sort((a,b)=>avgAllocOf(b)-avgAllocOf(a));
+  else if(dbSortMode==='alloc-asc') sorted.sort((a,b)=>avgAllocOf(a)-avgAllocOf(b));
+  else if(dbSortMode==='name-asc') sorted.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(dbSortMode==='name-desc') sorted.sort((a,b)=>b.name.localeCompare(a.name));
+  else if(dbSortMode==='cost-desc') sorted.sort((a,b)=>fcTotals(b).totalCost-fcTotals(a).totalCost);
+  else if(dbSortMode==='rev-desc') sorted.sort((a,b)=>fcTotals(b).totalRevenue-fcTotals(a).totalRevenue);
+  else if(dbSortMode==='npm-desc') sorted.sort((a,b)=>fcTotals(b).npm-fcTotals(a).npm);
+  else if(dbSortMode==='region') sorted.sort((a,b)=>a.region.localeCompare(b.region));
+
+  let h=`<div style="padding:8px 16px;background:var(--s2);border-bottom:1px solid var(--b1);display:flex;align-items:center;gap:8px">
+    <span style="font-size:11px;color:var(--t3);font-weight:500">Sort by:</span>
+    <select class="dyn-select" onchange="setDbSort(this.value)">
+      <option value="alloc-desc"${dbSortMode==='alloc-desc'?' selected':''}>Allocation (highest first)</option>
+      <option value="alloc-asc"${dbSortMode==='alloc-asc'?' selected':''}>Allocation (lowest first)</option>
+      <option value="name-asc"${dbSortMode==='name-asc'?' selected':''}>Name (A–Z)</option>
+      <option value="name-desc"${dbSortMode==='name-desc'?' selected':''}>Name (Z–A)</option>
+      <option value="rev-desc"${dbSortMode==='rev-desc'?' selected':''}>Revenue (highest)</option>
+      <option value="cost-desc"${dbSortMode==='cost-desc'?' selected':''}>Cost (highest)</option>
+      <option value="npm-desc"${dbSortMode==='npm-desc'?' selected':''}>NPM (highest)</option>
+      <option value="region"${dbSortMode==='region'?' selected':''}>Region</option>
+    </select>
+  </div>`;
+  h+=`<div class="fc-scroll"><table class="fc-table"><thead>
+  <tr>
+    <th class="left sticky-col sticky-col-1" rowspan="2" style="min-width:140px">Resource</th>
+    <th class="left sticky-col sticky-col-2" rowspan="2">Rgn</th>
+    ${FC_MONTHS.map(m=>`<th class="month-hdr">${m.label} '${String(m.year).slice(2)}</th>`).join('')}
+    <th colspan="4" style="background:#1A1917;color:#fff;text-align:center">Total / Average</th>
+  </tr>
+  <tr>
+    ${FC_MONTHS.map(()=>`<th>Alloc%</th>`).join('')}
+    <th>Avg%</th><th>Hrs</th><th>Cost £</th><th>Rev £</th>
+  </tr></thead><tbody>`;
+
+  // Track expand state
+  if(!window._dbExpanded) window._dbExpanded={};
+
+  sorted.forEach((r,ri)=>{
+    const tot=fcTotals(r);
+    const avgAlloc=FC_MONTHS.length?Math.round(FC_MONTHS.reduce((s,m)=>s+fcMonthAlloc(r,m.key),0)/FC_MONTHS.length):0;
+    const utilCol=avgAlloc>100?'var(--red)':avgAlloc>=75?'var(--green)':avgAlloc>=50?'var(--teal)':avgAlloc>0?'var(--amber)':'var(--t3)';
+    const rowBg=ri%2===0?'':'background:var(--s2)';
+
+    // Collect project/site splits across all months
+    const allSplits=new Map();
+    FC_MONTHS.forEach(m=>{
+      fcWeeksInMonth(m.key).forEach(w=>{
+        fcWeekEntries(r,w.key).forEach(e=>{
+          if(e.projectId){
+            const k=e.projectId+'|'+(e.site||'');
+            if(!allSplits.has(k)) allSplits.set(k,{projectId:e.projectId,site:e.site||''});
+          }
+        });
+      });
+    });
+    const splits=[...allSplits.values()];
+    const hasSplits=splits.length>0;
+    const isExp=window._dbExpanded[r.id]!==false && hasSplits;
+
+    h+=`<tr style="${rowBg};cursor:${hasSplits?'pointer':'default'}" ${hasSplits?`onclick="window._dbExpanded['${r.id}']=!(window._dbExpanded['${r.id}']!==false);buildFcDashboard()"`:''}>
+      <td class="left sticky-col sticky-col-1" style="font-weight:600;font-size:11px;${rowBg?'background:var(--s2)':'background:var(--sf)'}">
+        ${hasSplits?`<span class="chev${isExp?' open':''}" style="font-size:9px;margin-right:4px">▶</span>`:''}
+        ${r.name}
+        ${hasSplits?`<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--pl);color:var(--purple);margin-left:4px">${splits.length}</span>`:''}
+      </td>
+      <td class="left sticky-col sticky-col-2" style="${rowBg?'background:var(--s2)':'background:var(--sf)'}"><span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--tl);color:var(--teal)">${r.region}</span></td>`;
+
+    FC_MONTHS.forEach(m=>{
+      const c=fcCalcMonth(r,m.key);
+      const col=c.alloc===0?'var(--t3)':c.alloc>100?'var(--red)':c.alloc>=75?'var(--green)':c.alloc>=50?'var(--teal)':'var(--amber)';
+      const allocBg=c.alloc>100?'var(--rl)':c.alloc>=75?'var(--gl)':c.alloc>=50?'var(--tl)':c.alloc>0?'var(--al)':'';
+      h+=`<td style="text-align:center;font-weight:${c.alloc>0?'600':'400'};color:${col};${allocBg?'background:'+allocBg:''}">${c.alloc||'—'}%</td>`;
+    });
+
+    h+=`<td style="text-align:center;font-weight:700;color:${utilCol}">${avgAlloc}%</td>`;
+    h+=`<td style="font-weight:600">${fc1(tot.totalHours)}</td>`;
+    h+=`<td style="color:#993C1D">£${fc2(tot.totalCost)}</td>`;
+    h+=`<td style="color:var(--teal)">£${fc2(tot.totalRevenue)}</td>`;
+    h+=`</tr>`;
+
+    // Expanded sub-rows per project/site
+    if(hasSplits && isExp){
+      splits.forEach(sp=>{
+        const p=projects.find(x=>x.id===sp.projectId);
+        const label=p?(sp.site?p.name+' / '+sp.site:p.name):'Unknown';
+        const pColor=p?.color||'var(--t3)';
+        let spTotalHrs=0;
+        h+=`<tr style="background:var(--s2)">
+          <td class="left sticky-col sticky-col-1" colspan="2" style="padding-left:28px;font-size:10px;color:var(--t2);background:var(--s2)">
+            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${pColor};margin-right:5px"></span>
+            ${label}
+          </td>`;
+        FC_MONTHS.forEach(m=>{
+          let mPct=0, mHrs=0;
+          fcWeeksInMonth(m.key).forEach(w=>{
+            const entries=fcWeekEntries(r,w.key);
+            const match=entries.find(e=>e.projectId===sp.projectId&&(e.site||'')===(sp.site||''));
+            if(match){
+              mPct+=match.pct;
+              mHrs+=Math.round((match.pct/100)*w.hours*10)/10;
+            }
+          });
+          const wCount=fcWeeksInMonth(m.key).length;
+          const avgPct=wCount?Math.round(mPct/wCount):0;
+          spTotalHrs+=mHrs;
+          const col=avgPct===0?'var(--t3)':pColor;
+          h+=`<td style="text-align:center;font-size:10px;color:${col}">${avgPct?avgPct+'%':'—'}</td>`;
+        });
+        h+=`<td></td><td style="font-size:10px;font-weight:600">${fc1(spTotalHrs)}</td><td></td><td></td>`; // totals cols
+        h+=`</tr>`;
+      });
+    }
+  });
+
+  // ── Totals row ──
+  h+=`<tr class="total-row">
+    <td class="left sticky-col sticky-col-1" colspan="2" style="background:var(--tl)">TOTAL (${fcResources.length})</td>`;
+  let gH=0,gC=0,gR=0;
+  FC_MONTHS.forEach(m=>{
+    let mA=0,mH=0;
+    fcResources.forEach(r=>{const c=fcCalcMonth(r,m.key);mA+=c.alloc;mH+=c.hours});
+    gH+=mH; let mC=0,mRev=0;
+    fcResources.forEach(r=>{const c=fcCalcMonth(r,m.key);mC+=c.cost;mRev+=c.revenue});
+    gC+=mC;gR+=mRev;
+    const avgA=fcResources.length?Math.round(mA/fcResources.length):0;
+    h+=`<td style="text-align:center;font-weight:600">${avgA}%</td>`;
+  });
+  const gAvg=FC_MONTHS.length&&fcResources.length?Math.round(FC_MONTHS.reduce((s,m)=>{let a=0;fcResources.forEach(r=>a+=fcMonthAlloc(r,m.key));return s+a/fcResources.length},0)/FC_MONTHS.length):0;
+  h+=`<td style="font-weight:700">${gAvg}%</td>`;
+  h+=`<td style="font-weight:700">${fc1(gH)}</td>`;
+  h+=`<td style="color:#993C1D;font-weight:700">£${fc2(gC)}</td>`;
+  h+=`<td style="color:var(--teal);font-weight:700">£${fc2(gR)}</td>`;
+  h+=`</tr></tbody></table></div>`;
+
+  el('fc-main').innerHTML=h;
 }
 
 function buildFcSummary(){
