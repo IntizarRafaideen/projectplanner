@@ -246,6 +246,24 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   .detail-grid .full{grid-column:1}
   .frow{grid-template-columns:1fr}
 }
+/* ── HOME DASHBOARD ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes countUp{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
+@keyframes barGrow{from{width:0}to{width:var(--bar-w)}}
+.dash-card{background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:18px 20px;animation:fadeUp .4s ease both}
+.dash-card:hover{box-shadow:var(--shm);border-color:var(--b2);transition:all .2s}
+.dash-hero{background:linear-gradient(135deg,var(--teal),#185FA5);border-radius:var(--rlg);padding:28px 32px;color:#fff;animation:fadeUp .3s ease both}
+.dash-hero h1{font-family:'Inter Tight',sans-serif;font-size:26px;font-weight:700;margin-bottom:4px}
+.dash-hero .sub{font-size:13px;opacity:.8}
+.dash-metric{text-align:center;padding:16px 12px;animation:fadeUp .4s ease both}
+.dash-metric .num{font-family:'Inter Tight',sans-serif;font-size:28px;font-weight:700;animation:countUp .5s ease both}
+.dash-metric .lbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-top:4px}
+.dash-bar{height:8px;border-radius:4px;background:var(--b1);overflow:hidden;margin-top:6px}
+.dash-bar-fill{height:100%;border-radius:4px;animation:barGrow .8s ease both}
+.dash-ring{position:relative;width:80px;height:80px;margin:0 auto}
+.dash-quick{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r);cursor:pointer;transition:all .15s;border:1px solid var(--b1)}
+.dash-quick:hover{background:var(--tl);border-color:var(--teal);transform:translateY(-1px)}
+
 /* ── AUTH ── */
 .auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
 .auth-card{background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);box-shadow:var(--shm);width:400px;max-width:94vw;padding:36px 32px}
@@ -364,9 +382,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 
 <!-- DASHBOARD -->
 <div id="dashboard" class="section active">
-  <div class="page-hdr"><h1>Dashboard</h1></div>
-  <div class="stats-row" id="dash-stats"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px" id="dash-body"></div>
+  <div id="dash-home"></div>
 </div>
 
 <!-- TIMELINE -->
@@ -1114,48 +1130,226 @@ function seedData(){
 
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 function buildDashboard(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const todayStr=today.toISOString().slice(0,10);
   const total=milestones.length, done=milestones.filter(m=>m.progress===100).length;
   const avg=total?Math.round(milestones.reduce((a,m)=>a+m.progress,0)/total):0;
-  const allT=milestones.flatMap(m=>m.tasks), doneT=allT.filter(t=>t.done).length;
   const atRisk=milestones.filter(m=>m.progress>0&&m.progress<50).length;
-  el('dash-stats').innerHTML=[
-    {sl:'Overall progress',sv:avg+'%',ss:`${done} of ${total} milestones complete`},
-    {sl:'Tasks',sv:`${doneT}/${allT.length}`,ss:'Done across all milestones'},
-    {sl:'At risk',sv:atRisk,ss:'Milestones below 50%',col:atRisk>0?'var(--red)':''},
-    {sl:'Team members',sv:teams.length,ss:`${projects.length} project${projects.length!==1?'s':''}`},
-  ].map(s=>`<div class="stat"><div class="sl">${s.sl}</div><div class="sv"${s.col?` style="color:${s.col}"`:''}>${s.sv}</div><div class="ss">${s.ss}</div></div>`).join('');
-
-  const upcoming=[...milestones].filter(m=>m.progress<100).sort((a,b)=>a.start>b.start?1:-1).slice(0,5);
-  const openT=milestones.flatMap(m=>m.tasks.filter(t=>!t.done).map(t=>({...t,msName:m.name}))).slice(0,6);
-  const today=new Date(); today.setHours(0,0,0,0);
   const membersOnLeave=teams.filter(m=>m.leaves.some(l=>new Date(l.start+'T00:00')<=today&&new Date(l.end+'T00:00')>=today));
+  const upcoming=[...milestones].filter(m=>m.progress<100).sort((a,b)=>a.start>b.start?1:-1).slice(0,6);
 
-  el('dash-body').innerHTML=`
-  <div style="display:flex;flex-direction:column;gap:14px">
-    <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px">
-      <h3 style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Upcoming milestones</h3>
-      ${upcoming.length?upcoming.map(m=>{const s=statusOf(m.progress);return`<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--b1);cursor:pointer" onclick="showSec('hierarchy');setTimeout(()=>openMs('${m.id}'),60)">
-        <div style="width:8px;height:8px;border-radius:50%;background:${m.color};flex-shrink:0"></div>
-        <div style="flex:1"><div style="font-size:12px;font-weight:500">${m.name}</div><div style="font-size:10px;color:var(--t3)">${fmtS(m.start)}${m.end&&m.end!==m.start?' – '+fmtS(m.end):''} · ${m.owner||'—'}</div></div>
-        <span class="badge" style="background:${s.bg};color:${s.c}">${s.t}</span>
-      </div>`}).join(''):'<div class="empty" style="padding:20px 0">All milestones complete 🎉</div>'}
+  // Forecast totals
+  let fcRev=0,fcCost=0,fcHrs=0;
+  fcResources.forEach(r=>{const t=fcTotals(r);fcRev+=t.totalRevenue;fcCost+=t.totalCost;fcHrs+=t.totalHours});
+  const fcMargin=fcRev-fcCost;
+  const fcNpm=fcRev>0?fcMargin/fcRev:0;
+
+  // Current month allocation
+  const curMonthKey=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+  const curMonth=FC_MONTHS.find(m=>m.key===curMonthKey);
+  let curMonthAvgAlloc=0;
+  if(curMonth&&fcResources.length){
+    curMonthAvgAlloc=Math.round(fcResources.reduce((s,r)=>s+fcMonthAlloc(r,curMonth.key),0)/fcResources.length);
+  }
+
+  // Greeting
+  const hour=new Date().getHours();
+  const greeting=hour<12?'Good morning':hour<17?'Good afternoon':'Good evening';
+  const userName=currentUser?.name||'there';
+
+  // SVG ring for progress
+  const ringR=34, ringC=Math.PI*2*ringR, ringOffset=ringC-(avg/100)*ringC;
+
+  let h=`
+  <!-- Hero -->
+  <div class="dash-hero" style="animation-delay:0s">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+      <div>
+        <h1>${greeting}, ${userName.split(' ')[0]}</h1>
+        <div class="sub">${projects.length} project${projects.length!==1?'s':''} · ${total} milestones · ${teams.length} team members</div>
+      </div>
+      <div style="display:flex;gap:20px;align-items:center">
+        <div class="dash-ring">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="${ringR}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="6"/>
+            <circle cx="40" cy="40" r="${ringR}" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"
+              stroke-dasharray="${ringC}" stroke-dashoffset="${ringOffset}"
+              transform="rotate(-90 40 40)" style="transition:stroke-dashoffset 1s ease"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column">
+            <span style="font-size:20px;font-weight:700">${avg}%</span>
+            <span style="font-size:8px;opacity:.7">PROGRESS</span>
+          </div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:24px;font-weight:700">${done}<span style="font-size:14px;opacity:.6">/${total}</span></div>
+          <div style="font-size:9px;opacity:.7;text-transform:uppercase">Milestones done</div>
+        </div>
+      </div>
     </div>
-    ${membersOnLeave.length?`<div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px">
-      <h3 style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:10px">On leave today</h3>
-      ${membersOnLeave.map(m=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--b1)">
-        <div class="mem-av" style="background:${m.color}22;color:${m.color};width:28px;height:28px;font-size:11px">${ini(m.name)}</div>
-        <div><div style="font-size:12px;font-weight:500">${m.name}</div><div style="font-size:10px;color:var(--t3)">${m.role}</div></div>
-        <span class="leave-tag" style="margin-left:auto">On leave</span>
-      </div>`).join('')}
-    </div>`:''}
   </div>
-  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);padding:16px">
-    <h3 style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Open tasks</h3>
-    ${openT.length?openT.map(t=>`<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--b1)">
-      <div style="width:13px;height:13px;border-radius:3px;border:1.5px solid var(--b2);margin-top:1px;flex-shrink:0"></div>
-      <div><div style="font-size:12px;font-weight:500">${t.label}</div><div style="font-size:10px;color:var(--t3)">${t.msName} · ${t.owner}</div></div>
-    </div>`).join(''):'<div class="empty" style="padding:20px 0">No open tasks</div>'}
+
+  <!-- Metric cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px">
+    <div class="dash-card dash-metric" style="animation-delay:.1s">
+      <div class="num" style="color:var(--teal)">£${fc2(fcRev)}</div>
+      <div class="lbl">Forecast Revenue</div>
+    </div>
+    <div class="dash-card dash-metric" style="animation-delay:.15s">
+      <div class="num" style="color:#993C1D">£${fc2(fcCost)}</div>
+      <div class="lbl">Forecast Cost</div>
+    </div>
+    <div class="dash-card dash-metric" style="animation-delay:.2s">
+      <div class="num" style="color:${fcMargin>=0?'var(--green)':'var(--red)'}">£${fc2(fcMargin)}</div>
+      <div class="lbl">Margin</div>
+    </div>
+    <div class="dash-card dash-metric" style="animation-delay:.25s">
+      <div class="num"><span style="padding:4px 12px;border-radius:20px;background:${npmBg(fcNpm)};color:${npmCol(fcNpm)}">${fcp(fcNpm)}</span></div>
+      <div class="lbl">NPM</div>
+    </div>
+    <div class="dash-card dash-metric" style="animation-delay:.3s">
+      <div class="num" style="color:var(--teal)">${fc2(fcHrs)}</div>
+      <div class="lbl">Total Hours</div>
+    </div>
+    <div class="dash-card dash-metric" style="animation-delay:.35s">
+      <div class="num" style="color:${curMonthAvgAlloc>100?'var(--red)':curMonthAvgAlloc>=75?'var(--green)':'var(--amber)'}">${curMonthAvgAlloc}%</div>
+      <div class="lbl">Avg Allocation (this month)</div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px">
+
+    <!-- Projects overview -->
+    <div class="dash-card" style="animation-delay:.2s">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Projects</div>
+      ${projects.length?projects.map(p=>{
+        const pms=milestones.filter(m=>m.projectId===p.id);
+        const pAvg=pms.length?Math.round(pms.reduce((s,m)=>s+m.progress,0)/pms.length):0;
+        const pDone=pms.filter(m=>m.progress===100).length;
+        return`<div style="margin-bottom:12px;cursor:pointer" onclick="showSec('hierarchy')">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <div style="width:10px;height:10px;border-radius:50%;background:${p.color};flex-shrink:0"></div>
+            <span style="font-size:13px;font-weight:600;flex:1">${p.name}</span>
+            <span style="font-size:12px;font-weight:700;color:${p.color}">${pAvg}%</span>
+          </div>
+          <div class="dash-bar"><div class="dash-bar-fill" style="--bar-w:${pAvg}%;width:${pAvg}%;background:${p.color}"></div></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:3px">${pDone}/${pms.length} milestones · ${(p.sites||[]).length} sites</div>
+        </div>`;
+      }).join(''):'<div style="color:var(--t3);font-size:12px">No projects yet</div>'}
+    </div>
+
+    <!-- Upcoming milestones -->
+    <div class="dash-card" style="animation-delay:.25s">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Upcoming Milestones</div>
+      ${upcoming.length?upcoming.map((m,i)=>{
+        const s=statusOf(m.progress);
+        const proj=projects.find(p=>p.id===m.projectId);
+        return`<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--b1);cursor:pointer;animation:fadeUp .3s ease both;animation-delay:${.3+i*.05}s" onclick="showSec('hierarchy');setTimeout(()=>openMs('${m.id}'),60)">
+          <div style="width:8px;height:8px;border-radius:50%;background:${m.color};flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.name}</div>
+            <div style="font-size:10px;color:var(--t3)">${proj?proj.name+' / '+m.site:''} · ${fmtS(m.start)}</div>
+          </div>
+          <span class="badge" style="background:${s.bg};color:${s.c};cursor:pointer" onclick="event.stopPropagation();promptProgress('${m.id}')">${m.progress}%</span>
+        </div>`;
+      }).join(''):'<div style="color:var(--t3);font-size:12px;padding:12px 0">All milestones complete 🎉</div>'}
+    </div>
+
+    <!-- Team utilisation -->
+    <div class="dash-card" style="animation-delay:.3s">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Team Utilisation${curMonth?' — '+curMonth.label:''}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px">
+      ${fcResources.slice(0,12).map((r,i)=>{
+        const alloc=curMonth?Math.round(fcMonthAlloc(r,curMonth.key)):0;
+        const col=alloc>100?'var(--red)':alloc>=75?'var(--green)':alloc>=50?'var(--teal)':alloc>0?'var(--amber)':'var(--t3)';
+        const bg=alloc>100?'var(--rl)':alloc>=75?'var(--gl)':alloc>=50?'var(--tl)':alloc>0?'var(--al)':'var(--s2)';
+        return`<div style="background:${bg};border-radius:var(--rsm);padding:6px 8px;text-align:center;animation:fadeUp .3s ease both;animation-delay:${.35+i*.03}s">
+          <div style="font-size:16px;font-weight:700;color:${col}">${alloc}%</div>
+          <div style="font-size:9px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name.split(' ')[0]}</div>
+        </div>`;
+      }).join('')}
+      </div>
+      ${fcResources.length>12?`<div style="font-size:10px;color:var(--t3);text-align:center;margin-top:6px">+${fcResources.length-12} more</div>`:''}
+    </div>
+
+    <!-- Alerts & info -->
+    <div class="dash-card" style="animation-delay:.35s">
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin-bottom:12px">Alerts</div>
+      ${atRisk?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--rl);border-radius:var(--rsm);margin-bottom:6px">
+        <span style="font-size:18px">⚠</span>
+        <div><div style="font-size:12px;font-weight:600;color:var(--red)">${atRisk} milestone${atRisk!==1?'s':''} at risk</div>
+        <div style="font-size:10px;color:var(--t2)">Below 50% progress</div></div>
+      </div>`:''}
+      ${membersOnLeave.length?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#FEF3C7;border-radius:var(--rsm);margin-bottom:6px">
+        <span style="font-size:18px">🏖</span>
+        <div><div style="font-size:12px;font-weight:600;color:var(--amber)">${membersOnLeave.length} on leave today</div>
+        <div style="font-size:10px;color:var(--t2)">${membersOnLeave.map(m=>m.name).join(', ')}</div></div>
+      </div>`:''}
+      ${!atRisk&&!membersOnLeave.length?`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--gl);border-radius:var(--rsm)">
+        <span style="font-size:18px">✅</span>
+        <div style="font-size:12px;font-weight:600;color:var(--green)">All clear — no alerts</div>
+      </div>`:''}
+
+      <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--t3);margin:14px 0 8px">Quick Actions</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="dash-quick" onclick="showSec('forecast')">
+          <span style="font-size:16px">📊</span>
+          <div><div style="font-size:12px;font-weight:500">Forecast Dashboard</div><div style="font-size:10px;color:var(--t3)">View monthly allocations</div></div>
+        </div>
+        <div class="dash-quick" onclick="showSec('timeline')">
+          <span style="font-size:16px">📅</span>
+          <div><div style="font-size:12px;font-weight:500">Timeline</div><div style="font-size:10px;color:var(--t3)">Gantt chart view</div></div>
+        </div>
+        <div class="dash-quick" onclick="showSec('invoicing')">
+          <span style="font-size:16px">💰</span>
+          <div><div style="font-size:12px;font-weight:500">Invoicing</div><div style="font-size:10px;color:var(--t3)">Track billing</div></div>
+        </div>
+      </div>
+    </div>
   </div>`;
+
+  // Corporate joke
+  const jokes=[
+    {q:"Why do project managers make great comedians?",a:"Because they always deliver — eventually."},
+    {q:"What's the difference between a project manager and a magician?",a:"A magician tells you what they're going to do, does it, then explains what they did. A PM does it the other way around."},
+    {q:"How many project managers does it take to change a lightbulb?",a:"None. They just update the status to 'on track' and schedule a follow-up."},
+    {q:"Why did the spreadsheet go to therapy?",a:"It had too many issues and couldn't CTRL its feelings."},
+    {q:"What's a project manager's favourite horror movie?",a:"'The Deadline Is Coming From Inside The House.'"},
+    {q:"Why did the developer quit?",a:"Because they didn't get arrays. (A raise.)"},
+    {q:"What did the Gantt chart say to the deadline?",a:"'I'll get to you eventually… it's on the critical path.'"},
+    {q:"How do you know a project is in trouble?",a:"When the PM starts saying 'let's take this offline.'"},
+    {q:"What's the first rule of ERP implementation?",a:"You don't talk about the go-live date. The second rule? See rule one."},
+    {q:"Why are consultants like mushrooms?",a:"They're kept in the dark, fed rubbish, and expected to grow."},
+    {q:"What's the difference between a project and a pizza?",a:"A pizza can be delivered in 30 minutes."},
+    {q:"How do you make a small fortune in consulting?",a:"Start with a large fortune."},
+    {q:"Why did the milestone cross the road?",a:"To get to the other scope."},
+    {q:"What does a project manager do when they're bored?",a:"Reorganise the RAID log."},
+    {q:"Why are status meetings like diets?",a:"Everyone cheats and nobody loses anything."},
+    {q:"What's the optimist's version of a project timeline?",a:"The one they show the client."},
+    {q:"How many stakeholders does it take to approve a change request?",a:"Trick question — they'll never all agree."},
+    {q:"Why did the BA bring a ladder to the meeting?",a:"To reach the high-level requirements."},
+    {q:"What's a PM's love language?",a:"RAG status: Green."},
+    {q:"Why did the project fail?",a:"Nobody knows. But the lessons learned doc is 47 pages."},
+  ];
+  const joke=jokes[Math.floor(Math.random()*jokes.length)];
+
+  h+=`
+  <div class="dash-card" style="margin-top:14px;animation-delay:.4s;background:linear-gradient(135deg,#EEEDFE,#E6F1FB);border-color:var(--purple)">
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <span style="font-size:28px">😂</span>
+      <div>
+        <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--purple);margin-bottom:6px">Corporate wisdom of the day</div>
+        <div style="font-size:13px;font-weight:600;color:var(--tx);margin-bottom:6px">${joke.q}</div>
+        <div style="font-size:13px;color:var(--purple);font-style:italic">${joke.a}</div>
+      </div>
+    </div>
+    <div style="text-align:right;margin-top:8px">
+      <button class="btn btn-sm" onclick="buildDashboard()" style="font-size:10px;color:var(--purple);border-color:var(--purple)">🎲 Another one</button>
+    </div>
+  </div>`;
+
+  el('dash-home').innerHTML=h;
 }
 
 // ─── GANTT ───────────────────────────────────────────────────────────────────
@@ -2699,6 +2893,61 @@ async function exportWeeklyForecastXl(){
 
     row.height=20;
     curRow++;
+
+    // ── SUB-ROWS: project/site breakdown ──
+    const purpleFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEEDFE'}};
+    const allSplits=new Map();
+    weeks.forEach(w=>{
+      fcWeekEntries(r,w.key).forEach(e=>{
+        if(e.projectId){
+          const k=e.projectId+'|'+(e.site||'');
+          if(!allSplits.has(k)) allSplits.set(k,{projectId:e.projectId,site:e.site||''});
+        }
+      });
+    });
+    [...allSplits.values()].forEach(sp=>{
+      const p=projects.find(x=>x.id===sp.projectId);
+      const label=p?(sp.site?p.name+' / '+sp.site:p.name):'Unknown';
+      const subRow=ws.getRow(curRow);
+      subRow.getCell(1).value='   → '+label;
+      subRow.getCell(1).font={size:9,italic:true,color:{argb:'FF534AB7'}};
+      subRow.getCell(1).fill=purpleFill; subRow.getCell(1).border=thinBorder;
+      for(let c=2;c<=4;c++){subRow.getCell(c).fill=purpleFill;subRow.getCell(c).border=thinBorder}
+
+      let spTotalHrs=0;
+      weeks.forEach((w,wi)=>{
+        const allocC=5+wi*2, hrsC=allocC+1;
+        const entries=fcWeekEntries(r,w.key);
+        const match=entries.find(e=>e.projectId===sp.projectId&&(e.site||'')===(sp.site||''));
+        const pct=match?match.pct:0;
+        const hrs=pct?Math.round((pct/100)*w.hours*10)/10:0;
+        spTotalHrs+=hrs;
+
+        subRow.getCell(allocC).value=pct?pct/100:0;
+        subRow.getCell(allocC).numFmt='0%';
+        subRow.getCell(allocC).font=pct?{size:9,color:{argb:'FF534AB7'}}:smallFont;
+        subRow.getCell(allocC).fill=purpleFill;
+        subRow.getCell(allocC).border=thinBorder;
+        subRow.getCell(allocC).alignment={horizontal:'center'};
+
+        subRow.getCell(hrsC).value=hrs||0;
+        subRow.getCell(hrsC).numFmt='0.0';
+        subRow.getCell(hrsC).font={size:9,color:{argb:'FF534AB7'}};
+        subRow.getCell(hrsC).fill=purpleFill;
+        subRow.getCell(hrsC).border=thinBorder;
+        subRow.getCell(hrsC).alignment={horizontal:'center'};
+      });
+
+      subRow.getCell(totalColStart).value=spTotalHrs;
+      subRow.getCell(totalColStart).numFmt='0.0';
+      subRow.getCell(totalColStart).font={size:9,bold:true,color:{argb:'FF534AB7'}};
+      subRow.getCell(totalColStart).fill=purpleFill;
+      subRow.getCell(totalColStart).border=thinBorder;
+      for(let i=1;i<5;i++){subRow.getCell(totalColStart+i).fill=purpleFill;subRow.getCell(totalColStart+i).border=thinBorder}
+
+      subRow.height=16;
+      curRow++;
+    });
   });
 
   // ── TOTALS ROW ──
@@ -2781,6 +3030,7 @@ function buildFcDashboard(){
       <option value="npm-desc"${dbSortMode==='npm-desc'?' selected':''}>NPM (highest)</option>
       <option value="region"${dbSortMode==='region'?' selected':''}>Region</option>
     </select>
+    <button class="btn btn-sm" style="margin-left:auto" onclick="exportDashboardXl()">⬇ Export Excel</button>
   </div>`;
   h+=`<div class="fc-scroll"><table class="fc-table"><thead>
   <tr>
@@ -2895,6 +3145,192 @@ function buildFcDashboard(){
   h+=`</tr></tbody></table></div>`;
 
   el('fc-main').innerHTML=h;
+}
+
+async function exportDashboardXl(){
+  if(!fcResources.length||!FC_MONTHS.length){ alert('No data to export.'); return; }
+
+  const wb=new ExcelJS.Workbook(); wb.creator='notXL';
+  const ws=wb.addWorksheet('Dashboard',{views:[{state:'frozen',xSplit:2,ySplit:2}]});
+
+  const tealFill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0F6E56'}};
+  const darkFill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1A1917'}};
+  const lightGrayFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F1EE'}};
+  const greenFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEAF3DE'}};
+  const amberFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFAEEDA'}};
+  const redFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFCEBEB'}};
+  const tealLightFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE1F5EE'}};
+  const purpleFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFEEEDFE'}};
+  const whiteFont={color:{argb:'FFFFFFFF'},bold:true,size:10};
+  const boldFont={bold:true,size:10};
+  const smallFont={size:9,color:{argb:'FF6B6960'}};
+  const thinBorder={top:{style:'thin',color:{argb:'FFE4E2DC'}},bottom:{style:'thin',color:{argb:'FFE4E2DC'}},left:{style:'thin',color:{argb:'FFE4E2DC'}},right:{style:'thin',color:{argb:'FFE4E2DC'}}};
+
+  const totalColStart=3+FC_MONTHS.length;
+
+  // Row 1: Headers
+  const r1=ws.getRow(1);
+  r1.getCell(1).value='Resource'; r1.getCell(2).value='Region';
+  [1,2].forEach(c=>{r1.getCell(c).fill=tealFill;r1.getCell(c).font=whiteFont;r1.getCell(c).border=thinBorder});
+  FC_MONTHS.forEach((m,i)=>{
+    const c=3+i;
+    r1.getCell(c).value=m.label+" '"+String(m.year).slice(2);
+    r1.getCell(c).fill=tealFill;r1.getCell(c).font=whiteFont;
+    r1.getCell(c).alignment={horizontal:'center'};r1.getCell(c).border=thinBorder;
+  });
+  ['Avg%','Total Hrs','Total Cost £','Total Rev £'].forEach((t,i)=>{
+    const c=totalColStart+i;
+    r1.getCell(c).value=t;r1.getCell(c).fill=darkFill;r1.getCell(c).font=whiteFont;
+    r1.getCell(c).alignment={horizontal:'center'};r1.getCell(c).border=thinBorder;
+  });
+
+  // Row 2: Sub-header
+  const r2=ws.getRow(2);
+  [1,2].forEach(c=>{r2.getCell(c).fill=lightGrayFill;r2.getCell(c).border=thinBorder});
+  FC_MONTHS.forEach((m,i)=>{
+    const c=3+i;
+    r2.getCell(c).value='Alloc%';r2.getCell(c).font=smallFont;
+    r2.getCell(c).fill=lightGrayFill;r2.getCell(c).alignment={horizontal:'center'};r2.getCell(c).border=thinBorder;
+  });
+  ['Avg%','Hrs','Cost','Rev'].forEach((t,i)=>{
+    const c=totalColStart+i;
+    r2.getCell(c).value=t;r2.getCell(c).font=smallFont;
+    r2.getCell(c).fill=lightGrayFill;r2.getCell(c).alignment={horizontal:'center'};r2.getCell(c).border=thinBorder;
+  });
+
+  // Sort same as UI
+  const sorted=[...fcResources];
+  const avgAllocOf=r=>FC_MONTHS.length?FC_MONTHS.reduce((s,m)=>s+fcMonthAlloc(r,m.key),0)/FC_MONTHS.length:0;
+  if(dbSortMode==='alloc-desc') sorted.sort((a,b)=>avgAllocOf(b)-avgAllocOf(a));
+  else if(dbSortMode==='alloc-asc') sorted.sort((a,b)=>avgAllocOf(a)-avgAllocOf(b));
+  else if(dbSortMode==='name-asc') sorted.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(dbSortMode==='name-desc') sorted.sort((a,b)=>b.name.localeCompare(a.name));
+  else if(dbSortMode==='cost-desc') sorted.sort((a,b)=>fcTotals(b).totalCost-fcTotals(a).totalCost);
+  else if(dbSortMode==='rev-desc') sorted.sort((a,b)=>fcTotals(b).totalRevenue-fcTotals(a).totalRevenue);
+  else if(dbSortMode==='npm-desc') sorted.sort((a,b)=>fcTotals(b).npm-fcTotals(a).npm);
+  else if(dbSortMode==='region') sorted.sort((a,b)=>a.region.localeCompare(b.region));
+
+  let curRow=3;
+  sorted.forEach((r,ri)=>{
+    const tot=fcTotals(r);
+    const avgAlloc=FC_MONTHS.length?Math.round(avgAllocOf(r)):0;
+    const row=ws.getRow(curRow);
+    const rowFill=ri%2===0?{type:'pattern',pattern:'solid',fgColor:{argb:'FFFFFFFF'}}:lightGrayFill;
+
+    row.getCell(1).value=r.name;row.getCell(1).font=boldFont;row.getCell(1).fill=rowFill;row.getCell(1).border=thinBorder;
+    row.getCell(2).value=r.region;row.getCell(2).font=smallFont;row.getCell(2).fill=rowFill;row.getCell(2).border=thinBorder;
+
+    FC_MONTHS.forEach((m,i)=>{
+      const c=3+i;
+      const alloc=fcMonthAlloc(r,m.key);
+      row.getCell(c).value=alloc/100;row.getCell(c).numFmt='0%';
+      row.getCell(c).alignment={horizontal:'center'};
+      if(alloc>100) row.getCell(c).fill=redFill;
+      else if(alloc>=75) row.getCell(c).fill=greenFill;
+      else if(alloc>=50) row.getCell(c).fill=tealLightFill;
+      else if(alloc>0) row.getCell(c).fill=amberFill;
+      else row.getCell(c).fill=rowFill;
+      row.getCell(c).font=alloc>0?{size:10,bold:true}:smallFont;
+      row.getCell(c).border=thinBorder;
+    });
+
+    row.getCell(totalColStart).value=avgAlloc/100;row.getCell(totalColStart).numFmt='0%';
+    row.getCell(totalColStart).font={bold:true,size:10};row.getCell(totalColStart).fill=rowFill;row.getCell(totalColStart).border=thinBorder;row.getCell(totalColStart).alignment={horizontal:'center'};
+    row.getCell(totalColStart+1).value=tot.totalHours;row.getCell(totalColStart+1).numFmt='0.0';
+    row.getCell(totalColStart+1).font=boldFont;row.getCell(totalColStart+1).fill=rowFill;row.getCell(totalColStart+1).border=thinBorder;
+    row.getCell(totalColStart+2).value=tot.totalCost;row.getCell(totalColStart+2).numFmt='£#,##0';
+    row.getCell(totalColStart+2).font={size:10,color:{argb:'FF993C1D'}};row.getCell(totalColStart+2).fill=rowFill;row.getCell(totalColStart+2).border=thinBorder;
+    row.getCell(totalColStart+3).value=tot.totalRevenue;row.getCell(totalColStart+3).numFmt='£#,##0';
+    row.getCell(totalColStart+3).font={size:10,color:{argb:'FF0F6E56'}};row.getCell(totalColStart+3).fill=rowFill;row.getCell(totalColStart+3).border=thinBorder;
+
+    curRow++;
+
+    // Sub-rows per project/site
+    const allSplits=new Map();
+    FC_MONTHS.forEach(m=>{
+      fcWeeksInMonth(m.key).forEach(w=>{
+        fcWeekEntries(r,w.key).forEach(e=>{
+          if(e.projectId){
+            const k=e.projectId+'|'+(e.site||'');
+            if(!allSplits.has(k)) allSplits.set(k,{projectId:e.projectId,site:e.site||''});
+          }
+        });
+      });
+    });
+    [...allSplits.values()].forEach(sp=>{
+      const p=projects.find(x=>x.id===sp.projectId);
+      const label=p?(sp.site?p.name+' / '+sp.site:p.name):'Unknown';
+      const subRow=ws.getRow(curRow);
+      subRow.getCell(1).value='   → '+label;
+      subRow.getCell(1).font={size:9,italic:true,color:{argb:'FF534AB7'}};
+      subRow.getCell(1).fill=purpleFill;subRow.getCell(1).border=thinBorder;
+      subRow.getCell(2).fill=purpleFill;subRow.getCell(2).border=thinBorder;
+
+      let spTotalHrs=0;
+      FC_MONTHS.forEach((m,i)=>{
+        const c=3+i;
+        let mPct=0;
+        fcWeeksInMonth(m.key).forEach(w=>{
+          const match=fcWeekEntries(r,w.key).find(e=>e.projectId===sp.projectId&&(e.site||'')===(sp.site||''));
+          if(match) mPct+=match.pct;
+        });
+        const wCount=fcWeeksInMonth(m.key).length;
+        const avgPct=wCount?Math.round(mPct/wCount):0;
+        const hrs=fcWeeksInMonth(m.key).reduce((s,w)=>{
+          const match=fcWeekEntries(r,w.key).find(e=>e.projectId===sp.projectId&&(e.site||'')===(sp.site||''));
+          return s+(match?Math.round((match.pct/100)*w.hours*10)/10:0);
+        },0);
+        spTotalHrs+=hrs;
+        subRow.getCell(c).value=avgPct?avgPct/100:0;subRow.getCell(c).numFmt='0%';
+        subRow.getCell(c).font=avgPct?{size:9,color:{argb:'FF534AB7'}}:smallFont;
+        subRow.getCell(c).fill=purpleFill;subRow.getCell(c).border=thinBorder;subRow.getCell(c).alignment={horizontal:'center'};
+      });
+
+      subRow.getCell(totalColStart).fill=purpleFill;subRow.getCell(totalColStart).border=thinBorder;
+      subRow.getCell(totalColStart+1).value=spTotalHrs;subRow.getCell(totalColStart+1).numFmt='0.0';
+      subRow.getCell(totalColStart+1).font={size:9,bold:true,color:{argb:'FF534AB7'}};
+      subRow.getCell(totalColStart+1).fill=purpleFill;subRow.getCell(totalColStart+1).border=thinBorder;
+      subRow.getCell(totalColStart+2).fill=purpleFill;subRow.getCell(totalColStart+2).border=thinBorder;
+      subRow.getCell(totalColStart+3).fill=purpleFill;subRow.getCell(totalColStart+3).border=thinBorder;
+      subRow.height=16;
+      curRow++;
+    });
+  });
+
+  // Totals row
+  const totR=ws.getRow(curRow);
+  totR.getCell(1).value='TOTAL ('+fcResources.length+')';
+  totR.getCell(1).font={bold:true,size:11,color:{argb:'FF0F6E56'}};
+  [1,2].forEach(c=>{totR.getCell(c).fill=tealLightFill;totR.getCell(c).border=thinBorder});
+  let gH=0,gC=0,gR=0;
+  FC_MONTHS.forEach((m,i)=>{
+    const c=3+i;
+    let mA=0;fcResources.forEach(r=>mA+=fcMonthAlloc(r,m.key));
+    const avgA=fcResources.length?Math.round(mA/fcResources.length):0;
+    totR.getCell(c).value=avgA/100;totR.getCell(c).numFmt='0%';
+    totR.getCell(c).font={bold:true,size:10};totR.getCell(c).fill=tealLightFill;totR.getCell(c).border=thinBorder;totR.getCell(c).alignment={horizontal:'center'};
+    let mH=0,mC2=0,mR2=0;fcResources.forEach(r=>{const cc=fcCalcMonth(r,m.key);mH+=cc.hours;mC2+=cc.cost;mR2+=cc.revenue});
+    gH+=mH;gC+=mC2;gR+=mR2;
+  });
+  totR.getCell(totalColStart).fill=tealLightFill;totR.getCell(totalColStart).border=thinBorder;
+  totR.getCell(totalColStart+1).value=gH;totR.getCell(totalColStart+1).numFmt='0.0';
+  totR.getCell(totalColStart+1).font={bold:true,size:11,color:{argb:'FF0F6E56'}};totR.getCell(totalColStart+1).fill=tealLightFill;totR.getCell(totalColStart+1).border=thinBorder;
+  totR.getCell(totalColStart+2).value=gC;totR.getCell(totalColStart+2).numFmt='£#,##0';
+  totR.getCell(totalColStart+2).font={bold:true,size:11,color:{argb:'FF993C1D'}};totR.getCell(totalColStart+2).fill=tealLightFill;totR.getCell(totalColStart+2).border=thinBorder;
+  totR.getCell(totalColStart+3).value=gR;totR.getCell(totalColStart+3).numFmt='£#,##0';
+  totR.getCell(totalColStart+3).font={bold:true,size:11,color:{argb:'FF0F6E56'}};totR.getCell(totalColStart+3).fill=tealLightFill;totR.getCell(totalColStart+3).border=thinBorder;
+
+  // Column widths
+  ws.getColumn(1).width=22;ws.getColumn(2).width=7;
+  for(let i=0;i<FC_MONTHS.length;i++) ws.getColumn(3+i).width=10;
+  ws.getColumn(totalColStart).width=8;ws.getColumn(totalColStart+1).width=10;ws.getColumn(totalColStart+2).width=12;ws.getColumn(totalColStart+3).width=12;
+
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='notXL-Dashboard-'+new Date().toISOString().slice(0,10)+'.xlsx';
+  a.click();URL.revokeObjectURL(a.href);
 }
 
 function buildFcSummary(){
