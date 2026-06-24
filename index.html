@@ -5143,17 +5143,18 @@ function drawPmCanvas(){
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(fx,fy);
-    // Right-angle connector: extend from anchor, then route to target
-    const stub=20;
+    // Right-angle connector: extend from anchor, clear the node shape first
+    const fStub=Math.max(25, (bestF.id==='top'||bestF.id==='bottom') ? from.h/2+15 : from.w/2+15);
+    const tStub=Math.max(25, (bestT.id==='top'||bestT.id==='bottom') ? to.h/2+15 : to.w/2+15);
     let mx1=fx,my1=fy,mx2=tx,my2=ty;
-    if(bestF.id==='right'){ mx1=fx+stub; my1=fy; }
-    else if(bestF.id==='left'){ mx1=fx-stub; my1=fy; }
-    else if(bestF.id==='bottom'){ mx1=fx; my1=fy+stub; }
-    else { mx1=fx; my1=fy-stub; }
-    if(bestT.id==='right'){ mx2=tx+stub; my2=ty; }
-    else if(bestT.id==='left'){ mx2=tx-stub; my2=ty; }
-    else if(bestT.id==='bottom'){ mx2=tx; my2=ty+stub; }
-    else { mx2=tx; my2=ty-stub; }
+    if(bestF.id==='right'){ mx1=fx+fStub; my1=fy; }
+    else if(bestF.id==='left'){ mx1=fx-fStub; my1=fy; }
+    else if(bestF.id==='bottom'){ mx1=fx; my1=fy+fStub; }
+    else { mx1=fx; my1=fy-fStub; }
+    if(bestT.id==='right'){ mx2=tx+tStub; my2=ty; }
+    else if(bestT.id==='left'){ mx2=tx-tStub; my2=ty; }
+    else if(bestT.id==='bottom'){ mx2=tx; my2=ty+tStub; }
+    else { mx2=tx; my2=ty-tStub; }
     // Route: from → stub1 → midpoint → stub2 → to
     const isHorizF=(bestF.id==='right'||bestF.id==='left');
     const isHorizT=(bestT.id==='right'||bestT.id==='left');
