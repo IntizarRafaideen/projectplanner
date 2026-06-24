@@ -453,33 +453,41 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
 
 <!-- PROCESS MAPS -->
 <div id="processmaps" class="section">
-  <div class="page-hdr">
-    <h1>Process Maps</h1>
-    <span style="font-size:12px;color:var(--t3);margin-right:auto">Interactive flowcharts, process maps, and mind maps</span>
-    <select id="pm-diagram-sel" class="dyn-select" onchange="loadDiagram()"></select>
-    <button class="btn btn-sm" onclick="newDiagram()">+ New Diagram</button>
-    <button class="btn btn-sm" onclick="renameDiagram()">✎ Rename</button>
-    <button class="btn btn-sm" onclick="deleteDiagram()" style="color:var(--red)">🗑 Delete</button>
-    <button class="btn btn-sm" onclick="exportDiagramPng()">⬇ Export PNG</button>
+  <!-- Gallery view -->
+  <div id="pm-gallery">
+    <div class="page-hdr">
+      <h1>Process Maps</h1>
+      <span style="font-size:12px;color:var(--t3);margin-right:auto">Interactive flowcharts, process maps, and mind maps</span>
+      <button class="btn btn-primary" onclick="newDiagram()">+ New Diagram</button>
+    </div>
+    <div id="pm-gallery-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px"></div>
   </div>
-  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-    <span style="font-size:11px;color:var(--t3);font-weight:500">Add:</span>
-    <button class="btn btn-sm" onclick="addPmNode('process')">▭ Process</button>
-    <button class="btn btn-sm" onclick="addPmNode('decision')">◇ Decision</button>
-    <button class="btn btn-sm" onclick="addPmNode('start')">● Start/End</button>
-    <button class="btn btn-sm" onclick="addPmNode('note')">☰ Note</button>
-    <span style="width:1px;height:18px;background:var(--b1)"></span>
-    <button class="btn btn-sm" id="pm-connect-btn" onclick="toggleConnectMode()">🔗 Connect</button>
-    <button class="btn btn-sm" onclick="deletePmSelected()">🗑 Delete Selected</button>
-    <span style="width:1px;height:18px;background:var(--b1)"></span>
-    <span style="font-size:11px;color:var(--t3)">Color:</span>
-    <input type="color" id="pm-color" value="#0F6E56" style="width:28px;height:24px;border:1px solid var(--b2);border-radius:4px;cursor:pointer" onchange="colorPmSelected(this.value)">
-    <span style="font-size:11px;color:var(--t3);margin-left:auto" id="pm-status">Click canvas to add nodes</span>
+  <!-- Editor view (hidden until diagram opened) -->
+  <div id="pm-editor" style="display:none">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="closePmEditor()">← Back to all diagrams</button>
+      <h2 style="font-family:'Inter Tight',sans-serif;font-size:16px;font-weight:700;flex:1" id="pm-editor-title">Diagram</h2>
+      <button class="btn btn-sm" onclick="renameDiagram()">✎ Rename</button>
+      <button class="btn btn-sm" onclick="exportDiagramPng()">⬇ PNG</button>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center;padding:8px 12px;background:var(--sf);border:1px solid var(--b1);border-radius:var(--r)">
+      <button class="btn btn-sm" onclick="addPmNode('process')" style="background:var(--tl);border-color:var(--teal);color:var(--teal)">▭ Process</button>
+      <button class="btn btn-sm" onclick="addPmNode('decision')" style="background:var(--pl);border-color:var(--purple);color:var(--purple)">◇ Decision</button>
+      <button class="btn btn-sm" onclick="addPmNode('start')" style="background:var(--gl);border-color:var(--green);color:var(--green)">● Start/End</button>
+      <button class="btn btn-sm" onclick="addPmNode('note')" style="background:var(--al);border-color:var(--amber);color:var(--amber)">☰ Note</button>
+      <span style="width:1px;height:20px;background:var(--b1)"></span>
+      <button class="btn btn-sm" id="pm-connect-btn" onclick="toggleConnectMode()">🔗 Connect</button>
+      <button class="btn btn-sm" onclick="deletePmSelected()" style="color:var(--red)">🗑 Delete</button>
+      <span style="width:1px;height:20px;background:var(--b1)"></span>
+      <input type="color" id="pm-color" value="#0F6E56" style="width:28px;height:24px;border:1px solid var(--b2);border-radius:4px;cursor:pointer" onchange="colorPmSelected(this.value)" title="Node color">
+      <span style="font-size:10px;color:var(--t3);margin-left:auto" id="pm-status">Drag from anchors to connect · Double-click to edit · Delete key to remove</span>
+    </div>
+    <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;position:relative;box-shadow:var(--sh)" id="pm-canvas-wrap">
+      <canvas id="pm-canvas" width="1400" height="700" style="width:100%;cursor:default;display:block" tabindex="0"></canvas>
+      <textarea id="pm-edit-input" style="display:none;position:absolute;background:rgba(255,255,255,.95);border:2px solid var(--teal);border-radius:6px;padding:4px 8px;font-family:Inter,sans-serif;font-size:12px;text-align:center;resize:none;outline:none;z-index:10;overflow:hidden;line-height:1.3" rows="2"></textarea>
+    </div>
   </div>
-  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;position:relative" id="pm-canvas-wrap">
-    <canvas id="pm-canvas" width="1400" height="700" style="width:100%;cursor:default;display:block" tabindex="0"></canvas>
-    <textarea id="pm-edit-input" style="display:none;position:absolute;background:rgba(255,255,255,.95);border:2px solid var(--teal);border-radius:6px;padding:4px 8px;font-family:Inter,sans-serif;font-size:12px;text-align:center;resize:none;outline:none;z-index:10;overflow:hidden;line-height:1.3" rows="2"></textarea>
-  </div>
+  <select id="pm-diagram-sel" style="display:none"></select>
 </div>
 
 <!-- INVOICING -->
@@ -4689,14 +4697,104 @@ let pmAnchorDrag = null; // {fromId, fromAnchor, mouseX, mouseY}
 
 function getPmDiagram(){ return pmDiagrams.find(d=>d.id===pmCurDiagramId) || pmDiagrams[0]; }
 
+let pmEditorOpen=false;
+
 function buildProcessMaps(){
   const sel=el('pm-diagram-sel');
   if(sel){
-    const cv=sel.value||pmCurDiagramId;
-    sel.innerHTML=pmDiagrams.map(d=>`<option value="${d.id}"${d.id===cv?' selected':''}>${d.name}</option>`).join('');
+    sel.innerHTML=pmDiagrams.map(d=>`<option value="${d.id}"${d.id===pmCurDiagramId?' selected':''}>${d.name}</option>`).join('');
   }
-  attachPmEvents();
-  setTimeout(()=>drawPmCanvas(),50);
+  if(pmEditorOpen){
+    el('pm-gallery').style.display='none';
+    el('pm-editor').style.display='block';
+    el('pm-editor-title').textContent=getPmDiagram()?.name||'Diagram';
+    attachPmEvents();
+    setTimeout(()=>drawPmCanvas(),50);
+  } else {
+    el('pm-gallery').style.display='block';
+    el('pm-editor').style.display='none';
+    buildPmGallery();
+  }
+}
+
+function buildPmGallery(){
+  const grid=el('pm-gallery-grid'); if(!grid) return;
+  const colors=['#0F6E56','#185FA5','#534AB7','#BA7517','#993C1D','#E24B4A','#3B6D11'];
+
+  let h='';
+  // New diagram card
+  h+=`<div onclick="newDiagram()" style="background:var(--s2);border:2px dashed var(--b2);border-radius:var(--rlg);padding:30px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;min-height:160px" onmouseover="this.style.borderColor='var(--teal)';this.style.background='var(--tl)'" onmouseout="this.style.borderColor='var(--b2)';this.style.background='var(--s2)'">
+    <div style="font-size:32px;color:var(--teal);margin-bottom:8px">+</div>
+    <div style="font-size:13px;font-weight:600;color:var(--teal)">New Diagram</div>
+    <div style="font-size:10px;color:var(--t3);margin-top:4px">Create a flowchart, process map, or mind map</div>
+  </div>`;
+
+  pmDiagrams.forEach((d,i)=>{
+    const color=colors[i%colors.length];
+    const nodeCount=d.nodes?.length||0;
+    const connCount=d.connections?.length||0;
+    const types={};
+    (d.nodes||[]).forEach(n=>{types[n.type]=(types[n.type]||0)+1});
+
+    h+=`<div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;cursor:pointer;transition:all .2s;animation:fadeUp .3s ease both;animation-delay:${i*.05}s" onclick="openPmEditor('${d.id}')" onmouseover="this.style.boxShadow='var(--shm)';this.style.borderColor='${color}'" onmouseout="this.style.boxShadow='none';this.style.borderColor='var(--b1)'">
+      <!-- Color header -->
+      <div style="background:${color};padding:14px 16px;color:#fff;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-10px;top:-10px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.1)"></div>
+        <div style="position:absolute;right:20px;bottom:-15px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.08)"></div>
+        <div style="font-size:14px;font-weight:700">${d.name}</div>
+        <div style="font-size:10px;opacity:.8;margin-top:2px">${nodeCount} nodes · ${connCount} connections</div>
+      </div>
+      <!-- Preview info -->
+      <div style="padding:12px 16px">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+          ${types.process?`<span style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--tl);color:var(--teal);font-weight:600">${types.process} Process</span>`:''}
+          ${types.decision?`<span style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--pl);color:var(--purple);font-weight:600">${types.decision} Decision</span>`:''}
+          ${types.start?`<span style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--gl);color:var(--green);font-weight:600">${types.start} Start/End</span>`:''}
+          ${types.note?`<span style="font-size:9px;padding:2px 7px;border-radius:10px;background:var(--al);color:var(--amber);font-weight:600">${types.note} Notes</span>`:''}
+          ${!nodeCount?`<span style="font-size:10px;color:var(--t3);font-style:italic">Empty diagram</span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="btn btn-sm" style="font-size:10px" onclick="event.stopPropagation();openPmEditor('${d.id}')">Open</button>
+          <button class="btn btn-sm" style="font-size:10px" onclick="event.stopPropagation();duplicateDiagram('${d.id}')">⧉ Duplicate</button>
+          ${pmDiagrams.length>1?`<button class="btn btn-sm" style="font-size:10px;color:var(--red)" onclick="event.stopPropagation();deleteDiagramById('${d.id}')">🗑</button>`:''}
+        </div>
+      </div>
+    </div>`;
+  });
+
+  grid.innerHTML=h;
+}
+
+function openPmEditor(diagId){
+  pmCurDiagramId=diagId;
+  pmSelected=null; pmHovered=null; pmAnchorDrag=null;
+  pmEditorOpen=true;
+  buildProcessMaps();
+}
+
+function closePmEditor(){
+  pmEditorOpen=false;
+  buildProcessMaps();
+}
+
+function duplicateDiagram(diagId){
+  const src=pmDiagrams.find(d=>d.id===diagId); if(!src) return;
+  const dup={id:uid(),name:src.name+' (copy)',nodes:(src.nodes||[]).map(n=>({...n,id:uid()})),connections:[]};
+  // Remap connection IDs
+  const idMap={};
+  src.nodes.forEach((n,i)=>{idMap[n.id]=dup.nodes[i].id});
+  dup.connections=(src.connections||[]).map(c=>({id:uid(),from:idMap[c.from]||c.from,to:idMap[c.to]||c.to,label:c.label||''}));
+  pmDiagrams.push(dup);
+  saveData(); buildPmGallery();
+}
+
+function deleteDiagramById(diagId){
+  if(pmDiagrams.length<=1){ alert('Cannot delete the last diagram.'); return; }
+  const d=pmDiagrams.find(x=>x.id===diagId);
+  if(!confirm('Delete "'+d.name+'"?')) return;
+  pmDiagrams=pmDiagrams.filter(x=>x.id!==diagId);
+  if(pmCurDiagramId===diagId) pmCurDiagramId=pmDiagrams[0].id;
+  saveData(); buildPmGallery();
 }
 
 function newDiagram(){
@@ -4725,7 +4823,8 @@ function loadDiagram(){
 
 function renameDiagram(){
   const d=getPmDiagram();
-  const name=prompt('Rename diagram:',d.name);
+  let name='';
+  try{ name=window.prompt('Rename diagram:',d.name); }catch(e){}
   if(!name||!name.trim()) return;
   d.name=name.trim();
   saveData(); buildProcessMaps();
@@ -4736,7 +4835,7 @@ function deleteDiagram(){
   if(!confirm('Delete this diagram?')) return;
   pmDiagrams=pmDiagrams.filter(d=>d.id!==pmCurDiagramId);
   pmCurDiagramId=pmDiagrams[0].id;
-  pmSelected=null;
+  pmSelected=null; pmEditorOpen=false;
   saveData(); buildProcessMaps();
 }
 
@@ -5753,7 +5852,7 @@ function showSec(name){
   const m={dashboard:0,timeline:1,hierarchy:2,forecast:3,leave:4,invoicing:5,processmaps:6,masterdata:7,audit:8};
   if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
   if(name==='users') buildUsersTable();
-  if(name==='processmaps'){ setTimeout(()=>{attachPmEvents(); drawPmCanvas()},100); }
+  if(name==='processmaps'){ buildProcessMaps(); }
 }
 
 // BANNERS
