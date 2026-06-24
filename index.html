@@ -4847,7 +4847,8 @@ let pmDragging = null;
 let pmEditing = null;
 let pmHovered = null;
 let pmAnchorDrag = null;
-let pmSelectedConn = null; // connection id
+let pmSelectedConn = null;
+let pmConnDrag = null; // {connId, axis:'x'|'y', startVal}
 
 let pmUndoStack=[];
 let pmRedoStack=[];
@@ -5143,7 +5144,7 @@ function drawPmCanvas(){
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(fx,fy);
-    // Right-angle connector with small stub
+    // Right-angle connector with adjustable midpoint
     const stub=15;
     let mx1=fx,my1=fy,mx2=tx,my2=ty;
     if(bestF.id==='right'){ mx1=fx+stub; my1=fy; }
@@ -5154,22 +5155,43 @@ function drawPmCanvas(){
     else if(bestT.id==='left'){ mx2=tx-stub; my2=ty; }
     else if(bestT.id==='bottom'){ mx2=tx; my2=ty+stub; }
     else { mx2=tx; my2=ty-stub; }
-    // Route: from → stub1 → midpoint → stub2 → to
+
     const isHorizF=(bestF.id==='right'||bestF.id==='left');
     const isHorizT=(bestT.id==='right'||bestT.id==='left');
+    const mo=c.midOffset||0; // user-adjustable offset
+    let handleX=0, handleY=0, handleAxis='x';
+
     if(isHorizF&&isHorizT){
-      const midX=(mx1+mx2)/2;
+      const midX=(mx1+mx2)/2+mo;
       ctx.lineTo(mx1,my1); ctx.lineTo(midX,my1); ctx.lineTo(midX,my2); ctx.lineTo(mx2,my2);
+      handleX=midX; handleY=(my1+my2)/2; handleAxis='x';
     } else if(!isHorizF&&!isHorizT){
-      const midY=(my1+my2)/2;
+      const midY=(my1+my2)/2+mo;
       ctx.lineTo(mx1,my1); ctx.lineTo(mx1,midY); ctx.lineTo(mx2,midY); ctx.lineTo(mx2,my2);
+      handleX=(mx1+mx2)/2; handleY=midY; handleAxis='y';
     } else if(isHorizF&&!isHorizT){
-      ctx.lineTo(mx1,my1); ctx.lineTo(mx2,my1); ctx.lineTo(mx2,my2);
+      const midY=my1+mo;
+      ctx.lineTo(mx1,my1); ctx.lineTo(mx2,midY); ctx.lineTo(mx2,my2);
+      handleX=(mx1+mx2)/2; handleY=midY; handleAxis='y';
     } else {
-      ctx.lineTo(mx1,my1); ctx.lineTo(mx1,my2); ctx.lineTo(mx2,my2);
+      const midX=mx1+mo;
+      ctx.lineTo(mx1,my1); ctx.lineTo(midX,my2); ctx.lineTo(mx2,my2);
+      handleX=midX; handleY=(my1+my2)/2; handleAxis='x';
     }
     ctx.lineTo(tx,ty);
     ctx.stroke();
+
+    // Draw draggable midpoint handle on selected connection
+    if(isSelConn){
+      ctx.fillStyle='var(--teal)';
+      ctx.strokeStyle='#fff';
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.rect(handleX-5,handleY-5,10,10);
+      ctx.fill(); ctx.stroke();
+      // Store handle info for hit testing
+      c._handle={x:handleX,y:handleY,axis:handleAxis};
+    }
 
     // Arrow head — direction based on target anchor
     const aLen=10;
@@ -5451,6 +5473,18 @@ function attachPmEvents(){
       return;
     }
 
+    // Check if dragging a connection midpoint handle
+    if(pmSelectedConn){
+      const d=getPmDiagram();
+      const sc=d.connections.find(x=>x.id===pmSelectedConn);
+      if(sc&&sc._handle&&Math.abs(pos.x-sc._handle.x)<8&&Math.abs(pos.y-sc._handle.y)<8){
+        pmConnDrag={connId:sc.id, axis:sc._handle.axis, startPos:sc._handle.axis==='x'?pos.x:pos.y, startOffset:sc.midOffset||0};
+        canvas.style.cursor=sc._handle.axis==='x'?'ew-resize':'ns-resize';
+        e.preventDefault();
+        return;
+      }
+    }
+
     if(node){
       pmSelected=node.id;
       pmSelectedConn=null;
@@ -5458,7 +5492,6 @@ function attachPmEvents(){
       el('pm-color').value=node.color||'#0F6E56';
       drawPmCanvas();
     } else {
-      // Check if clicked on a connection line
       const conn=hitTestConnection(pos);
       if(conn){
         pmSelectedConn=conn.id;
@@ -5474,6 +5507,18 @@ function attachPmEvents(){
 
   canvas.addEventListener('mousemove',e=>{
     const pos=getCanvasPos(e);
+
+    // Connection midpoint drag
+    if(pmConnDrag){
+      const d=getPmDiagram();
+      const sc=d.connections.find(x=>x.id===pmConnDrag.connId);
+      if(sc){
+        const curVal=pmConnDrag.axis==='x'?pos.x:pos.y;
+        sc.midOffset=pmConnDrag.startOffset+(curVal-pmConnDrag.startPos);
+        drawPmCanvas();
+      }
+      return;
+    }
 
     // Anchor drag — draw preview line
     if(pmAnchorDrag){
@@ -5527,6 +5572,15 @@ function attachPmEvents(){
   });
 
   canvas.addEventListener('mouseup',e=>{
+    // Connection midpoint drag end
+    if(pmConnDrag){
+      pmSaveUndo();
+      pmConnDrag=null;
+      canvas.style.cursor='default';
+      saveData(); drawPmCanvas();
+      return;
+    }
+
     // Anchor drag end — create connection
     if(pmAnchorDrag){
       const pos=getCanvasPos(e);
