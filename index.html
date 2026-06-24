@@ -4848,6 +4848,37 @@ let pmEditing = null;
 let pmHovered = null; // node id under mouse
 let pmAnchorDrag = null; // {fromId, fromAnchor, mouseX, mouseY}
 
+let pmUndoStack=[];
+let pmRedoStack=[];
+const PM_MAX_UNDO=30;
+
+function pmSaveUndo(){
+  const d=getPmDiagram(); if(!d) return;
+  pmUndoStack.push(JSON.stringify({nodes:d.nodes,connections:d.connections}));
+  if(pmUndoStack.length>PM_MAX_UNDO) pmUndoStack.shift();
+  pmRedoStack=[];
+}
+
+function pmUndo(){
+  if(!pmUndoStack.length) return;
+  const d=getPmDiagram(); if(!d) return;
+  pmRedoStack.push(JSON.stringify({nodes:d.nodes,connections:d.connections}));
+  const prev=JSON.parse(pmUndoStack.pop());
+  d.nodes=prev.nodes; d.connections=prev.connections;
+  pmSelected=null;
+  saveData(); drawPmCanvas();
+}
+
+function pmRedo(){
+  if(!pmRedoStack.length) return;
+  const d=getPmDiagram(); if(!d) return;
+  pmUndoStack.push(JSON.stringify({nodes:d.nodes,connections:d.connections}));
+  const next=JSON.parse(pmRedoStack.pop());
+  d.nodes=next.nodes; d.connections=next.connections;
+  pmSelected=null;
+  saveData(); drawPmCanvas();
+}
+
 function getPmDiagram(){ return pmDiagrams.find(d=>d.id===pmCurDiagramId) || pmDiagrams[0]; }
 
 let pmEditorOpen=false;
@@ -4997,10 +5028,11 @@ function addPmNode(type){
   const canvas=el('pm-canvas');
   const rect=canvas?canvas.getBoundingClientRect():{width:800,height:500};
   const cx=50+Math.random()*(rect.width-200), cy=50+Math.random()*(rect.height-150);
-  const labels={process:'Process Step',decision:'Yes / No?',start:'Start',note:'Note text'};
-  const w=type==='note'?160:type==='decision'?120:140;
-  const h=type==='decision'?70:type==='start'?50:50;
+  const labels={process:'Process Step',decision:'Decision?',start:'Start',note:'Note text'};
+  const w=type==='note'?160:type==='decision'?160:140;
+  const h=type==='decision'?100:type==='start'?50:50;
   const node={id:uid(),type,x:Math.max(10,cx),y:Math.max(10,cy),w,h,label:labels[type]||'Node',color:el('pm-color')?.value||'#0F6E56'};
+  pmSaveUndo();
   d.nodes.push(node);
   pmSelected=node.id;
   saveData(); drawPmCanvas();
@@ -5018,6 +5050,7 @@ function toggleConnectMode(){
 function deletePmSelected(){
   if(!pmSelected) return;
   const d=getPmDiagram();
+  pmSaveUndo();
   d.nodes=d.nodes.filter(n=>n.id!==pmSelected);
   d.connections=d.connections.filter(c=>c.from!==pmSelected&&c.to!==pmSelected);
   pmSelected=null;
@@ -5056,11 +5089,18 @@ function drawPmCanvas(){
 
   // Auto-resize nodes to fit text
   d.nodes.forEach(n=>{
-    ctx.font=(n.type==='note'?'11':'12')+'px Inter,sans-serif';
-    const lines=wrapText(ctx,n.label||'',n.w-16);
-    const lineH=n.type==='note'?14:16;
+    const fs=n.type==='note'?11:n.type==='decision'?11:12;
+    ctx.font=fs+'px Inter,sans-serif';
+    const maxW=n.type==='decision'?n.w*0.5:n.w-16;
+    const lines=wrapText(ctx,n.label||'',maxW);
+    const lineH=n.type==='note'?14:n.type==='decision'?14:16;
     const textH=lines.length*lineH+16;
-    if(textH>n.h) n.h=textH;
+    if(n.type==='decision'){
+      const minH=Math.max(textH*1.8,80);
+      if(minH>n.h){ n.h=minH; n.w=Math.max(n.w,minH*1.4); }
+    } else {
+      if(textH>n.h) n.h=textH;
+    }
   });
 
   // Draw connections (edge-to-edge)
@@ -5110,12 +5150,19 @@ function drawPmCanvas(){
     // Label
     if(c.label){
       const mx=(fx+tx)/2, my=(fy+ty)/2;
-      ctx.fillStyle='#fff';
-      const tw=ctx.measureText(c.label).width+8;
-      roundRect(ctx,mx-tw/2,my-10,tw,16,4);
-      ctx.fill();
-      ctx.fillStyle='#6B6960';
-      ctx.font='10px Inter,sans-serif';
+      ctx.font='bold 10px Inter,sans-serif';
+      const tw=ctx.measureText(c.label).width+12;
+      const isYes=c.label.toLowerCase()==='yes';
+      const isNo=c.label.toLowerCase()==='no';
+      const pillBg=isYes?'#EAF3DE':isNo?'#FCEBEB':'#fff';
+      const pillColor=isYes?'#3B6D11':isNo?'#E24B4A':'#6B6960';
+      const pillBorder=isYes?'#3B6D11':isNo?'#E24B4A':'#CCC9C0';
+      ctx.fillStyle=pillBg;
+      ctx.strokeStyle=pillBorder;
+      ctx.lineWidth=1.5;
+      roundRect(ctx,mx-tw/2,my-11,tw,18,9);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle=pillColor;
       ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText(c.label,mx,my-2);
     }
@@ -5176,13 +5223,15 @@ function drawPmCanvas(){
       });
     }
 
-    // Label
+    // Label — diamond uses narrower text area
     ctx.fillStyle=n.type==='start'?'#fff':n.type==='note'?'#92400E':'#1A1917';
-    ctx.font=(n.type==='note'?'11':'12')+'px Inter,sans-serif';
+    const fontSize=n.type==='note'?11:n.type==='decision'?11:12;
+    ctx.font=fontSize+'px Inter,sans-serif';
     ctx.textAlign='center';
     ctx.textBaseline='middle';
-    const lines=wrapText(ctx,n.label||'',n.w-16);
-    const lineH=n.type==='note'?14:16;
+    const textMaxW=n.type==='decision'?n.w*0.5:n.w-16;
+    const lines=wrapText(ctx,n.label||'',textMaxW);
+    const lineH=n.type==='note'?14:n.type==='decision'?14:16;
     const startY=n.y+n.h/2-(lines.length-1)*lineH/2;
     lines.forEach((line,i)=>{
       ctx.fillText(line,n.x+n.w/2,startY+i*lineH);
@@ -5231,6 +5280,32 @@ function hitTestAnchor(pos){
     for(const a of anchors){
       if(Math.abs(pos.x-a.x)<8&&Math.abs(pos.y-a.y)<8) return {nodeId:n.id,anchor:a};
     }
+  }
+  return null;
+}
+
+function getAutoConnLabel(diagram, fromNode){
+  if(!fromNode || fromNode.type!=='decision') return '';
+  const existingFromDecision = diagram.connections.filter(c=>c.from===fromNode.id);
+  if(existingFromDecision.length===0) return 'Yes';
+  if(existingFromDecision.length===1) return 'No';
+  return '';
+}
+
+function hitTestConnection(pos){
+  const d=getPmDiagram();
+  for(const c of d.connections){
+    const from=d.nodes.find(n=>n.id===c.from);
+    const to=d.nodes.find(n=>n.id===c.to);
+    if(!from||!to) continue;
+    const fAnchors=getNodeAnchors(from), tAnchors=getNodeAnchors(to);
+    let bestF=fAnchors[0], bestT=tAnchors[0], bestDist=Infinity;
+    fAnchors.forEach(fa=>tAnchors.forEach(ta=>{
+      const d2=(fa.x-ta.x)**2+(fa.y-ta.y)**2;
+      if(d2<bestDist){bestDist=d2;bestF=fa;bestT=ta}
+    }));
+    const mx=(bestF.x+bestT.x)/2, my=(bestF.y+bestT.y)/2;
+    if(Math.abs(pos.x-mx)<20 && Math.abs(pos.y-my)<12) return c;
   }
   return null;
 }
@@ -5287,7 +5362,10 @@ function attachPmEvents(){
           const d=getPmDiagram();
           const exists=d.connections.some(c=>c.from===pmConnectFrom&&c.to===node.id);
           if(!exists){
-            d.connections.push({id:uid(),from:pmConnectFrom,to:node.id,label:''});
+            const fromNode=d.nodes.find(n=>n.id===pmConnectFrom);
+            const autoLabel=getAutoConnLabel(d,fromNode);
+            pmSaveUndo();
+            d.connections.push({id:uid(),from:pmConnectFrom,to:node.id,label:autoLabel});
             saveData();
           }
           pmConnectFrom=null;
@@ -5373,7 +5451,10 @@ function attachPmEvents(){
         const d=getPmDiagram();
         const exists=d.connections.some(c=>c.from===pmAnchorDrag.fromId&&c.to===targetNode.id);
         if(!exists){
-          d.connections.push({id:uid(),from:pmAnchorDrag.fromId,to:targetNode.id,label:''});
+          const fromNode=d.nodes.find(n=>n.id===pmAnchorDrag.fromId);
+          const autoLabel=getAutoConnLabel(d,fromNode);
+          pmSaveUndo();
+          d.connections.push({id:uid(),from:pmAnchorDrag.fromId,to:targetNode.id,label:autoLabel});
           saveData();
         }
       }
@@ -5383,18 +5464,26 @@ function attachPmEvents(){
       return;
     }
 
-    if(pmDragging){ saveData(); pmDragging=null; }
+    if(pmDragging){ pmSaveUndo(); saveData(); pmDragging=null; }
   });
 
   canvas.addEventListener('dblclick',e=>{
     const pos=getCanvasPos(e);
     const node=hitTestNode(pos);
-    if(node) startInlineEdit(node);
+    if(node){ startInlineEdit(node); return; }
+    // Double-click on connection label to edit
+    const conn=hitTestConnection(pos);
+    if(conn){
+      const newLabel=prompt('Edit connection label:',conn.label||'');
+      if(newLabel!==null){ conn.label=newLabel; saveData(); drawPmCanvas(); }
+    }
   });
 
   // Keyboard shortcuts
   canvas.addEventListener('keydown',e=>{
-    if(pmEditing) return; // don't interfere with text editing
+    if(pmEditing) return;
+    if((e.ctrlKey||e.metaKey)&&e.key==='z'){ e.preventDefault(); pmUndo(); return; }
+    if((e.ctrlKey||e.metaKey)&&e.key==='y'){ e.preventDefault(); pmRedo(); return; }
     if(e.key==='Delete'||e.key==='Backspace'){
       if(pmSelected){ deletePmSelected(); e.preventDefault(); }
     }
