@@ -4700,13 +4700,21 @@ function buildProcessMaps(){
 }
 
 function newDiagram(){
-  const name=prompt('Diagram name:');
-  if(!name||!name.trim()) return;
+  let name='';
+  try{ name=window.prompt('Diagram name:','New Process'); }catch(e){}
+  if(!name||!name.trim()){
+    name='Diagram '+(pmDiagrams.length+1);
+  }
   const d={id:uid(),name:name.trim(),nodes:[],connections:[]};
   pmDiagrams.push(d);
   pmCurDiagramId=d.id;
-  pmSelected=null;
-  saveData(); buildProcessMaps();
+  pmSelected=null; pmHovered=null; pmAnchorDrag=null;
+  saveData();
+  const sel=el('pm-diagram-sel');
+  if(sel){
+    sel.innerHTML=pmDiagrams.map(dm=>`<option value="${dm.id}"${dm.id===d.id?' selected':''}>${dm.name}</option>`).join('');
+  }
+  setTimeout(()=>drawPmCanvas(),50);
 }
 
 function loadDiagram(){
