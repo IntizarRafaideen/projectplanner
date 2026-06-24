@@ -323,6 +323,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="ntab" onclick="showSec('forecast')">Forecast</button>
       <button class="ntab" onclick="showSec('leave')">Leave</button>
       <button class="ntab" onclick="showSec('invoicing')">Invoicing</button>
+      <button class="ntab" onclick="showSec('processmaps')">Process Maps</button>
       <button class="ntab" onclick="showSec('masterdata')">Master Data</button>
       <button class="ntab" onclick="showSec('audit')">Audit</button>
     </div>
@@ -447,6 +448,36 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   </div>
   <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden" id="leave-body">
     <div class="empty" style="padding:40px">Loading leave calendar…</div>
+  </div>
+</div>
+
+<!-- PROCESS MAPS -->
+<div id="processmaps" class="section">
+  <div class="page-hdr">
+    <h1>Process Maps</h1>
+    <span style="font-size:12px;color:var(--t3);margin-right:auto">Interactive flowcharts, process maps, and mind maps</span>
+    <select id="pm-diagram-sel" class="dyn-select" onchange="loadDiagram()"></select>
+    <button class="btn btn-sm" onclick="newDiagram()">+ New Diagram</button>
+    <button class="btn btn-sm" onclick="renameDiagram()">✎ Rename</button>
+    <button class="btn btn-sm" onclick="deleteDiagram()" style="color:var(--red)">🗑 Delete</button>
+    <button class="btn btn-sm" onclick="exportDiagramPng()">⬇ Export PNG</button>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+    <span style="font-size:11px;color:var(--t3);font-weight:500">Add:</span>
+    <button class="btn btn-sm" onclick="addPmNode('process')">▭ Process</button>
+    <button class="btn btn-sm" onclick="addPmNode('decision')">◇ Decision</button>
+    <button class="btn btn-sm" onclick="addPmNode('start')">● Start/End</button>
+    <button class="btn btn-sm" onclick="addPmNode('note')">☰ Note</button>
+    <span style="width:1px;height:18px;background:var(--b1)"></span>
+    <button class="btn btn-sm" id="pm-connect-btn" onclick="toggleConnectMode()">🔗 Connect</button>
+    <button class="btn btn-sm" onclick="deletePmSelected()">🗑 Delete Selected</button>
+    <span style="width:1px;height:18px;background:var(--b1)"></span>
+    <span style="font-size:11px;color:var(--t3)">Color:</span>
+    <input type="color" id="pm-color" value="#0F6E56" style="width:28px;height:24px;border:1px solid var(--b2);border-radius:4px;cursor:pointer" onchange="colorPmSelected(this.value)">
+    <span style="font-size:11px;color:var(--t3);margin-left:auto" id="pm-status">Click canvas to add nodes</span>
+  </div>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;position:relative">
+    <canvas id="pm-canvas" width="1400" height="700" style="width:100%;cursor:default;display:block"></canvas>
   </div>
 </div>
 
@@ -4644,6 +4675,341 @@ function buildLeaveCalendar(){
 }
 
 
+// ─── PROCESS MAPS ───────────────────────────────────────────────────────────
+let pmDiagrams = [{id:'pm_default',name:'Main Process',nodes:[],connections:[]}];
+let pmCurDiagramId = 'pm_default';
+let pmSelected = null; // node id
+let pmConnectMode = false;
+let pmConnectFrom = null;
+let pmDragging = null; // {nodeId, offsetX, offsetY}
+let pmEditing = null; // node id being text-edited
+
+function getPmDiagram(){ return pmDiagrams.find(d=>d.id===pmCurDiagramId) || pmDiagrams[0]; }
+
+function buildProcessMaps(){
+  const sel=el('pm-diagram-sel');
+  if(sel){
+    const cv=sel.value||pmCurDiagramId;
+    sel.innerHTML=pmDiagrams.map(d=>`<option value="${d.id}"${d.id===cv?' selected':''}>${d.name}</option>`).join('');
+  }
+  attachPmEvents();
+  setTimeout(()=>drawPmCanvas(),50);
+}
+
+function newDiagram(){
+  const name=prompt('Diagram name:');
+  if(!name||!name.trim()) return;
+  const d={id:uid(),name:name.trim(),nodes:[],connections:[]};
+  pmDiagrams.push(d);
+  pmCurDiagramId=d.id;
+  pmSelected=null;
+  saveData(); buildProcessMaps();
+}
+
+function loadDiagram(){
+  pmCurDiagramId=el('pm-diagram-sel').value;
+  pmSelected=null; pmConnectMode=false; pmConnectFrom=null;
+  drawPmCanvas();
+}
+
+function renameDiagram(){
+  const d=getPmDiagram();
+  const name=prompt('Rename diagram:',d.name);
+  if(!name||!name.trim()) return;
+  d.name=name.trim();
+  saveData(); buildProcessMaps();
+}
+
+function deleteDiagram(){
+  if(pmDiagrams.length<=1){ alert('Cannot delete the last diagram.'); return; }
+  if(!confirm('Delete this diagram?')) return;
+  pmDiagrams=pmDiagrams.filter(d=>d.id!==pmCurDiagramId);
+  pmCurDiagramId=pmDiagrams[0].id;
+  pmSelected=null;
+  saveData(); buildProcessMaps();
+}
+
+function addPmNode(type){
+  const d=getPmDiagram();
+  const canvas=el('pm-canvas');
+  const rect=canvas?canvas.getBoundingClientRect():{width:800,height:500};
+  const cx=50+Math.random()*(rect.width-200), cy=50+Math.random()*(rect.height-150);
+  const labels={process:'Process Step',decision:'Yes / No?',start:'Start',note:'Note text'};
+  const w=type==='note'?160:type==='decision'?120:140;
+  const h=type==='decision'?70:type==='start'?50:50;
+  const node={id:uid(),type,x:Math.max(10,cx),y:Math.max(10,cy),w,h,label:labels[type]||'Node',color:el('pm-color')?.value||'#0F6E56'};
+  d.nodes.push(node);
+  pmSelected=node.id;
+  saveData(); drawPmCanvas();
+  el('pm-status').textContent='Added '+type+' node — drag to position, double-click to edit label';
+}
+
+function toggleConnectMode(){
+  pmConnectMode=!pmConnectMode;
+  pmConnectFrom=null;
+  el('pm-connect-btn').style.background=pmConnectMode?'var(--teal)':'';
+  el('pm-connect-btn').style.color=pmConnectMode?'#fff':'';
+  el('pm-status').textContent=pmConnectMode?'Click source node, then target node to connect':'Click canvas to add nodes';
+}
+
+function deletePmSelected(){
+  if(!pmSelected) return;
+  const d=getPmDiagram();
+  d.nodes=d.nodes.filter(n=>n.id!==pmSelected);
+  d.connections=d.connections.filter(c=>c.from!==pmSelected&&c.to!==pmSelected);
+  pmSelected=null;
+  saveData(); drawPmCanvas();
+}
+
+function colorPmSelected(color){
+  if(!pmSelected) return;
+  const d=getPmDiagram();
+  const n=d.nodes.find(x=>x.id===pmSelected);
+  if(n){ n.color=color; saveData(); drawPmCanvas(); }
+}
+
+// ── CANVAS DRAWING ──
+function drawPmCanvas(){
+  const canvas=el('pm-canvas'); if(!canvas) return;
+  const ctx=canvas.getContext('2d');
+  const dpr=window.devicePixelRatio||1;
+  const rect=canvas.getBoundingClientRect();
+  if(rect.width<10||rect.height<10) return;
+  canvas.width=rect.width*dpr; canvas.height=rect.height*dpr;
+  ctx.scale(dpr,dpr);
+  const W=rect.width, H=rect.height;
+
+  // Background
+  ctx.fillStyle='#FAFAF8';
+  ctx.fillRect(0,0,W,H);
+
+  // Grid dots
+  ctx.fillStyle='#E4E2DC';
+  for(let x=20;x<W;x+=20) for(let y=20;y<H;y+=20){
+    ctx.beginPath(); ctx.arc(x,y,.5,0,Math.PI*2); ctx.fill();
+  }
+
+  const d=getPmDiagram();
+
+  // Draw connections
+  d.connections.forEach(c=>{
+    const from=d.nodes.find(n=>n.id===c.from);
+    const to=d.nodes.find(n=>n.id===c.to);
+    if(!from||!to) return;
+    const fx=from.x+from.w/2, fy=from.y+from.h/2;
+    const tx=to.x+to.w/2, ty=to.y+to.h/2;
+
+    ctx.strokeStyle='#6B6960';
+    ctx.lineWidth=2;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(fx,fy);
+    // Curved line
+    const mx=(fx+tx)/2, my=(fy+ty)/2;
+    const cx1=mx, cy1=fy, cx2=mx, cy2=ty;
+    ctx.bezierCurveTo(cx1,cy1,cx2,cy2,tx,ty);
+    ctx.stroke();
+
+    // Arrow head
+    const angle=Math.atan2(ty-cy2,tx-cx2);
+    const aLen=10;
+    ctx.fillStyle='#6B6960';
+    ctx.beginPath();
+    ctx.moveTo(tx,ty);
+    ctx.lineTo(tx-aLen*Math.cos(angle-Math.PI/6),ty-aLen*Math.sin(angle-Math.PI/6));
+    ctx.lineTo(tx-aLen*Math.cos(angle+Math.PI/6),ty-aLen*Math.sin(angle+Math.PI/6));
+    ctx.closePath(); ctx.fill();
+
+    // Label
+    if(c.label){
+      ctx.fillStyle='#6B6960';
+      ctx.font='10px Inter,sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText(c.label,mx,my-6);
+    }
+  });
+
+  // Draw nodes
+  d.nodes.forEach(n=>{
+    const isSel=n.id===pmSelected;
+    ctx.save();
+
+    // Shadow
+    if(isSel){
+      ctx.shadowColor='rgba(0,0,0,.15)';
+      ctx.shadowBlur=12;
+      ctx.shadowOffsetY=4;
+    }
+
+    if(n.type==='process'){
+      ctx.fillStyle=n.color+'22';
+      ctx.strokeStyle=isSel?'#1A1917':n.color;
+      ctx.lineWidth=isSel?3:2;
+      roundRect(ctx,n.x,n.y,n.w,n.h,8);
+      ctx.fill(); ctx.stroke();
+    } else if(n.type==='decision'){
+      ctx.fillStyle=n.color+'22';
+      ctx.strokeStyle=isSel?'#1A1917':n.color;
+      ctx.lineWidth=isSel?3:2;
+      ctx.beginPath();
+      ctx.moveTo(n.x+n.w/2,n.y);
+      ctx.lineTo(n.x+n.w,n.y+n.h/2);
+      ctx.lineTo(n.x+n.w/2,n.y+n.h);
+      ctx.lineTo(n.x,n.y+n.h/2);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if(n.type==='start'){
+      ctx.fillStyle=n.color;
+      ctx.strokeStyle=isSel?'#1A1917':n.color;
+      ctx.lineWidth=isSel?3:2;
+      roundRect(ctx,n.x,n.y,n.w,n.h,n.h/2);
+      ctx.fill(); ctx.stroke();
+    } else if(n.type==='note'){
+      ctx.fillStyle='#FEF3C7';
+      ctx.strokeStyle=isSel?'#1A1917':'#BA7517';
+      ctx.lineWidth=isSel?3:1.5;
+      ctx.setLineDash([4,3]);
+      roundRect(ctx,n.x,n.y,n.w,n.h,6);
+      ctx.fill(); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.restore();
+
+    // Label
+    ctx.fillStyle=n.type==='start'?'#fff':n.type==='note'?'#92400E':'#1A1917';
+    ctx.font=(n.type==='note'?'11':'12')+'px Inter,sans-serif';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    const lines=wrapText(ctx,n.label||'',n.w-16);
+    const lineH=n.type==='note'?14:16;
+    const startY=n.y+n.h/2-(lines.length-1)*lineH/2;
+    lines.forEach((line,i)=>{
+      ctx.fillText(line,n.x+n.w/2,startY+i*lineH);
+    });
+  });
+}
+
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+function wrapText(ctx,text,maxW){
+  const words=text.split(' ');
+  const lines=[]; let line='';
+  words.forEach(w=>{
+    const test=line?line+' '+w:w;
+    if(ctx.measureText(test).width>maxW&&line){ lines.push(line); line=w; }
+    else line=test;
+  });
+  if(line) lines.push(line);
+  return lines.length?lines:[''];
+}
+
+function getCanvasPos(e){
+  const canvas=el('pm-canvas');
+  const rect=canvas.getBoundingClientRect();
+  return {x:e.clientX-rect.left, y:e.clientY-rect.top};
+}
+
+function hitTestNode(pos){
+  const d=getPmDiagram();
+  for(let i=d.nodes.length-1;i>=0;i--){
+    const n=d.nodes[i];
+    if(n.type==='decision'){
+      const cx=n.x+n.w/2, cy=n.y+n.h/2;
+      const dx=Math.abs(pos.x-cx)/(n.w/2), dy=Math.abs(pos.y-cy)/(n.h/2);
+      if(dx+dy<=1.1) return n;
+    } else {
+      if(pos.x>=n.x&&pos.x<=n.x+n.w&&pos.y>=n.y&&pos.y<=n.y+n.h) return n;
+    }
+  }
+  return null;
+}
+
+// ── CANVAS EVENTS ──
+let pmEventsAttached=false;
+function attachPmEvents(){
+  if(pmEventsAttached) return;
+  const canvas=el('pm-canvas');
+  if(!canvas) return;
+  pmEventsAttached=true;
+
+  canvas.addEventListener('mousedown',e=>{
+    const pos=getCanvasPos(e);
+    const node=hitTestNode(pos);
+
+    if(pmConnectMode){
+      if(node){
+        if(!pmConnectFrom){
+          pmConnectFrom=node.id;
+          el('pm-status').textContent='Now click the target node';
+        } else if(node.id!==pmConnectFrom){
+          const d=getPmDiagram();
+          const exists=d.connections.some(c=>c.from===pmConnectFrom&&c.to===node.id);
+          if(!exists){
+            const label=prompt('Connection label (optional):','');
+            d.connections.push({id:uid(),from:pmConnectFrom,to:node.id,label:label||''});
+            saveData();
+          }
+          pmConnectFrom=null;
+          el('pm-status').textContent='Click source node, then target node';
+          drawPmCanvas();
+        }
+      }
+      return;
+    }
+
+    if(node){
+      pmSelected=node.id;
+      pmDragging={nodeId:node.id, offsetX:pos.x-node.x, offsetY:pos.y-node.y};
+      el('pm-color').value=node.color||'#0F6E56';
+      drawPmCanvas();
+    } else {
+      pmSelected=null;
+      drawPmCanvas();
+    }
+  });
+
+  canvas.addEventListener('mousemove',e=>{
+    if(!pmDragging) return;
+    const pos=getCanvasPos(e);
+    const d=getPmDiagram();
+    const n=d.nodes.find(x=>x.id===pmDragging.nodeId);
+    if(n){
+      n.x=Math.max(0,pos.x-pmDragging.offsetX);
+      n.y=Math.max(0,pos.y-pmDragging.offsetY);
+      drawPmCanvas();
+    }
+  });
+
+  canvas.addEventListener('mouseup',()=>{
+    if(pmDragging){ saveData(); pmDragging=null; }
+  });
+
+  canvas.addEventListener('dblclick',e=>{
+    const pos=getCanvasPos(e);
+    const node=hitTestNode(pos);
+    if(node){
+      const label=prompt('Edit label:',node.label);
+      if(label!==null){ node.label=label; saveData(); drawPmCanvas(); }
+    }
+  });
+}
+
+function exportDiagramPng(){
+  const canvas=el('pm-canvas');
+  const link=document.createElement('a');
+  link.download='notXL-ProcessMap-'+new Date().toISOString().slice(0,10)+'.png';
+  link.href=canvas.toDataURL('image/png');
+  link.click();
+}
+
 // ─── INVOICING ──────────────────────────────────────────────────────────────
 let invoiceData = [
   {id:'inv1',month:'May-25',planned:108190,actual:45000,wave3:45000,additional:0,barnsley:0,clitheroe:0,clitheroCRs:0,dataBridge:0},
@@ -5162,9 +5528,10 @@ function showSec(name){
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
   el(name).classList.add('active');
-  const m={dashboard:0,timeline:1,hierarchy:2,forecast:3,leave:4,invoicing:5,masterdata:6,audit:7};
+  const m={dashboard:0,timeline:1,hierarchy:2,forecast:3,leave:4,invoicing:5,processmaps:6,masterdata:7,audit:8};
   if(m[name]!==undefined) document.querySelectorAll('.ntab')[m[name]].classList.add('active');
   if(name==='users') buildUsersTable();
+  if(name==='processmaps'){ setTimeout(()=>{attachPmEvents(); drawPmCanvas()},100); }
 }
 
 // BANNERS
@@ -5228,7 +5595,7 @@ const SK='project_planner_v4';
 // Clear any old incompatible storage versions
 ['project_planner_v1','project_planner_v2','project_planner_v3'].forEach(k=>{ try{localStorage.removeItem(k)}catch(e){} });
 function getStateObj(){
-  return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS,rateCards:RATE_CARDS,invoiceData};
+  return {projects,milestones,teams,fcResources,fcPeriodStart,fcPeriodEnd,expProj,expSite,auditLog,ukHolidays:UK_HOLIDAYS,rateCards:RATE_CARDS,invoiceData,pmDiagrams};
 }
 
 const VERSIONS_COL = db.collection('versions');
@@ -5357,6 +5724,7 @@ function applyState(d){
   if(d.ukHolidays && d.ukHolidays.length){ UK_HOLIDAYS.length=0; d.ukHolidays.forEach(h=>UK_HOLIDAYS.push(h)); }
   if(d.rateCards && d.rateCards.length){ RATE_CARDS.length=0; d.rateCards.forEach(r=>RATE_CARDS.push(r)); }
   if(d.invoiceData) invoiceData=d.invoiceData;
+  if(d.pmDiagrams && d.pmDiagrams.length){ pmDiagrams=d.pmDiagrams; pmCurDiagramId=pmDiagrams[0].id; }
   fcResources=d.fcResources||[]; if(!fcResources.length) seedForecast();
   fcResources.forEach(r=>{ if(!r.weeklyAlloc) r.weeklyAlloc={}; if(!r.fcLeaves) r.fcLeaves=[]; });
   expProj=d.expProj||{}; expSite=d.expSite||{};
@@ -5401,7 +5769,7 @@ function loadData(){
 }
 
 function renderAll(skipSave){
-  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildInvoicing','buildMasterData','buildAuditLog'].forEach(fn=>{
+  ['buildDashboard','buildGantt','buildHierarchy','buildTeam','buildForecast','buildLeaveCalendar','buildInvoicing','buildProcessMaps','buildMasterData','buildAuditLog'].forEach(fn=>{
     try{ window[fn](); } catch(e){ console.error(fn+' failed:',e); }
   });
   if(!skipSave){ try{ saveData(); } catch(e){} }
