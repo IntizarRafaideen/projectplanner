@@ -1881,6 +1881,11 @@ function msDetail(ms){
     const ls=new Date(l.start+'T00:00'), le=new Date(l.end+'T00:00');
     return msStart&&msEnd&&ls<=msEnd&&le>=msStart;
   }));
+  if(!ms.workSchedule) ms.workSchedule={dayStart:'09:00',dayEnd:'17:00',breaks:[{start:'12:00',end:'13:00',label:'Lunch'}]};
+  const ws=ms.workSchedule;
+  const totalWorkMins=calcWorkMins(ws);
+  const totalWorkHrs=(totalWorkMins/60).toFixed(1);
+
   return`<div class="ms-detail">
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <span style="font-size:12px;color:var(--t2)">Owner: <strong>${ms.owner||'—'}</strong></span>
@@ -1888,6 +1893,24 @@ function msDetail(ms){
       <span style="font-size:12px;color:var(--t2)">End: <strong>${fmtD(ms.end)||'—'}</strong></span>
       <span style="font-size:12px;color:var(--t2)">Tasks: <strong>${doneTasks}/${ms.tasks.length}</strong></span>
       ${conflicts.length?`<span class="leave-tag">⚠ ${conflicts.length} leave conflict${conflicts.length!==1?'s':''}</span>`:''}
+    </div>
+    <!-- Work schedule config -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding:8px 12px;background:var(--s2);border-radius:var(--rsm);font-size:11px">
+      <span style="font-weight:600;color:var(--t3)">Work hours:</span>
+      <input type="time" value="${ws.dayStart}" onchange="editWorkSchedule('${ms.id}','dayStart',this.value)" style="padding:2px 4px;border:1px solid var(--b2);border-radius:3px;font-size:11px;font-family:Inter,sans-serif">
+      <span style="color:var(--t3)">to</span>
+      <input type="time" value="${ws.dayEnd}" onchange="editWorkSchedule('${ms.id}','dayEnd',this.value)" style="padding:2px 4px;border:1px solid var(--b2);border-radius:3px;font-size:11px;font-family:Inter,sans-serif">
+      <span style="color:var(--teal);font-weight:600">${totalWorkHrs}h/day</span>
+      <span style="width:1px;height:16px;background:var(--b1)"></span>
+      <span style="font-weight:600;color:var(--t3)">Breaks:</span>
+      ${(ws.breaks||[]).map((b,i)=>`<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 6px;background:var(--al);border-radius:10px;color:var(--amber)">
+        <input type="time" value="${b.start}" onchange="editBreak('${ms.id}',${i},'start',this.value)" style="padding:1px 2px;border:1px solid var(--b2);border-radius:3px;font-size:10px;font-family:Inter,sans-serif;width:60px">
+        –
+        <input type="time" value="${b.end}" onchange="editBreak('${ms.id}',${i},'end',this.value)" style="padding:1px 2px;border:1px solid var(--b2);border-radius:3px;font-size:10px;font-family:Inter,sans-serif;width:60px">
+        <span class="editable" contenteditable onblur="editBreak('${ms.id}',${i},'label',this.textContent)" style="font-size:10px;max-width:60px">${b.label||''}</span>
+        <button class="del-btn" onclick="delBreak('${ms.id}',${i})" style="font-size:9px">✕</button>
+      </span>`).join('')}
+      <button class="btn btn-sm" onclick="addBreak('${ms.id}')" style="font-size:10px;padding:2px 6px">+ Break</button>
     </div>
     <div class="detail-grid">
       <div class="dsec full">
@@ -1905,6 +1928,33 @@ function msDetail(ms){
           </tr>`).join('')}
         </tbody></table>
         <button class="add-row" onclick="addAg('${ms.id}')">+ Add agenda item</button>
+      </div>
+      <div class="dsec full">
+        <h4>Sessions / Schedule</h4>
+        <table class="ag-table"><thead>
+          <tr><th style="width:140px">Session</th><th style="width:100px">Owner</th><th style="width:80px">Date</th><th style="width:54px">Start</th><th style="width:54px">End</th><th style="width:50px">Hrs</th><th>Timeline</th><th style="width:22px"></th></tr>
+        </thead><tbody>
+          ${(ms.sessions||[]).map((s,i)=>{
+            const hrs=calcSessionHrs(s.startTime,s.endTime);
+            const barInfo=sessionBarStyle(ms,s);
+            return`<tr>
+              <td><span class="editable" contenteditable onblur="editSession('${ms.id}',${i},'name',this.textContent)">${s.name||''}</span></td>
+              <td><span class="editable" contenteditable onblur="editSession('${ms.id}',${i},'owner',this.textContent)">${s.owner||''}</span></td>
+              <td><input type="date" value="${s.date||''}" onchange="editSession('${ms.id}',${i},'date',this.value);autoCalcSessionTimes('${ms.id}',${i})" style="padding:2px 4px;border:1px solid var(--b2);border-radius:3px;font-size:11px;font-family:Inter,sans-serif;width:100%"></td>
+              <td><input type="time" value="${s.startTime||''}" onchange="editSession('${ms.id}',${i},'startTime',this.value)" style="padding:2px 3px;border:1px solid var(--b2);border-radius:3px;font-size:11px;font-family:Inter,sans-serif;width:100%"></td>
+              <td><input type="time" value="${s.endTime||''}" onchange="editSession('${ms.id}',${i},'endTime',this.value)" style="padding:2px 3px;border:1px solid var(--b2);border-radius:3px;font-size:11px;font-family:Inter,sans-serif;width:100%"></td>
+              <td style="font-weight:600;color:var(--teal);text-align:center">${hrs>0?hrs.toFixed(1):'—'}</td>
+              <td style="padding:4px 6px"><div style="height:14px;background:var(--b1);border-radius:3px;position:relative;overflow:hidden">
+                <div style="position:absolute;left:${barInfo.left}%;width:${barInfo.width}%;height:100%;background:${ms.color};border-radius:3px;opacity:.7"></div>
+              </div></td>
+              <td><button class="del-btn" onclick="delSession('${ms.id}',${i})">✕</button></td>
+            </tr>`}).join('')}
+        </tbody></table>
+        ${(ms.sessions||[]).length?`<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--t3)">
+          <span>Total: <strong style="color:var(--teal)">${((ms.sessions||[]).reduce((s,x)=>s+calcSessionHrs(x.startTime,x.endTime),0)).toFixed(1)}h</strong></span>
+          <span>Sessions: <strong>${(ms.sessions||[]).length}</strong></span>
+        </div>`:''}
+        <button class="add-row" onclick="addSession('${ms.id}')">+ Add session</button>
       </div>
       <div class="dsec">
         <h4>Tasks (${doneTasks}/${ms.tasks.length})</h4>
@@ -1964,6 +2014,109 @@ function promptProgress(msId){
   ms.progress=num;
   logAudit('edited','milestone',ms.name,[{field:'Progress',from:oldProg+'%',to:num+'%'}]);
   renderAll();
+}
+
+// ── SESSION FUNCTIONS ──
+function calcSessionHrs(startTime,endTime){
+  if(!startTime||!endTime) return 0;
+  const [sh,sm]=startTime.split(':').map(Number);
+  const [eh,em]=endTime.split(':').map(Number);
+  const diff=((eh*60+em)-(sh*60+sm))/60;
+  return diff>0?diff:0;
+}
+
+function sessionBarStyle(ms,s){
+  if(!s.startTime||!s.endTime) return {left:0,width:0};
+  const ws=ms.workSchedule||{dayStart:'09:00',dayEnd:'17:00'};
+  const [dsh,dsm]=(ws.dayStart||'09:00').split(':').map(Number);
+  const [deh,dem]=(ws.dayEnd||'17:00').split(':').map(Number);
+  const dayStart=dsh*60+dsm, dayEnd=deh*60+dem;
+  const [sh,sm]=s.startTime.split(':').map(Number);
+  const [eh,em]=s.endTime.split(':').map(Number);
+  const range=dayEnd-dayStart;
+  if(range<=0) return {left:0,width:0};
+  const left=Math.max(0,((sh*60+sm)-dayStart)/range*100);
+  const right=Math.min(100,((eh*60+em)-dayStart)/range*100);
+  return {left,width:Math.max(0,right-left)};
+}
+
+function calcWorkMins(ws){
+  if(!ws) return 480;
+  const [dsh,dsm]=(ws.dayStart||'09:00').split(':').map(Number);
+  const [deh,dem]=(ws.dayEnd||'17:00').split(':').map(Number);
+  let total=(deh*60+dem)-(dsh*60+dsm);
+  (ws.breaks||[]).forEach(b=>{
+    if(!b.start||!b.end) return;
+    const [bs,bm]=b.start.split(':').map(Number);
+    const [be,bem]=b.end.split(':').map(Number);
+    total-=((be*60+bem)-(bs*60+bm));
+  });
+  return Math.max(0,total);
+}
+
+function editWorkSchedule(msId,field,val){
+  const ms=milestones.find(m=>m.id===msId); if(!ms) return;
+  if(!ms.workSchedule) ms.workSchedule={dayStart:'09:00',dayEnd:'17:00',breaks:[{start:'12:00',end:'13:00',label:'Lunch'}]};
+  ms.workSchedule[field]=val;
+  saveData(); buildHierarchy();
+}
+
+function editBreak(msId,i,field,val){
+  const ms=milestones.find(m=>m.id===msId); if(!ms||!ms.workSchedule||!ms.workSchedule.breaks[i]) return;
+  ms.workSchedule.breaks[i][field]=(val||'').trim();
+  saveData(); buildHierarchy();
+}
+
+function addBreak(msId){
+  const ms=milestones.find(m=>m.id===msId); if(!ms) return;
+  if(!ms.workSchedule) ms.workSchedule={dayStart:'09:00',dayEnd:'17:00',breaks:[]};
+  if(!ms.workSchedule.breaks) ms.workSchedule.breaks=[];
+  ms.workSchedule.breaks.push({start:'15:00',end:'15:15',label:'Break'});
+  saveData(); buildHierarchy();
+}
+
+function delBreak(msId,i){
+  const ms=milestones.find(m=>m.id===msId); if(!ms||!ms.workSchedule) return;
+  ms.workSchedule.breaks.splice(i,1);
+  saveData(); buildHierarchy();
+}
+
+function editSession(msId,i,field,val){
+  const ms=milestones.find(m=>m.id===msId); if(!ms||!ms.sessions||!ms.sessions[i]) return;
+  ms.sessions[i][field]=(val||'').trim();
+  saveData(); buildHierarchy();
+}
+
+function autoCalcSessionTimes(msId,i){
+  const ms=milestones.find(m=>m.id===msId); if(!ms||!ms.sessions) return;
+  const s=ms.sessions[i];
+  if(!s.startTime) s.startTime='09:00';
+  if(!s.endTime){
+    const dur=parseFloat(s.duration)||1;
+    const [h,m]=s.startTime.split(':').map(Number);
+    const endMin=h*60+m+dur*60;
+    s.endTime=String(Math.floor(endMin/60)).padStart(2,'0')+':'+String(Math.floor(endMin%60)).padStart(2,'0');
+  }
+  saveData(); buildHierarchy();
+}
+
+function addSession(msId){
+  const ms=milestones.find(m=>m.id===msId); if(!ms) return;
+  if(!ms.sessions) ms.sessions=[];
+  const prevSession=ms.sessions[ms.sessions.length-1];
+  const date=prevSession?.date||ms.start||'';
+  const startTime=prevSession?.endTime||'09:00';
+  const [h,m]=startTime.split(':').map(Number);
+  const endMin=h*60+m+60;
+  const endTime=String(Math.floor(endMin/60)).padStart(2,'0')+':'+String(Math.floor(endMin%60)).padStart(2,'0');
+  ms.sessions.push({id:uid(),name:'',owner:'',date,startTime,endTime,duration:1});
+  rerender(msId);
+}
+
+function delSession(msId,i){
+  const ms=milestones.find(m=>m.id===msId); if(!ms||!ms.sessions) return;
+  ms.sessions.splice(i,1);
+  rerender(msId);
 }
 
 function rerender(msId){ buildHierarchy(); buildDashboard(); buildGantt(); buildTeam(); saveData() }
@@ -6051,7 +6204,7 @@ function applyState(d){
   expProj=d.expProj||{}; expSite=d.expSite||{};
   milestones.forEach(m=>{
     if(!m.teamIds)m.teamIds=[];if(!m.agenda)m.agenda=[];
-    if(!m.tasks)m.tasks=[];if(!m.deps)m.deps=[];
+    if(!m.tasks)m.tasks=[];if(!m.deps)m.deps=[];if(!m.sessions)m.sessions=[];
     if(m.progress===undefined)m.progress=0;
   });
   teams.forEach(t=>{
