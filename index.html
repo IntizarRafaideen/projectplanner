@@ -5103,8 +5103,14 @@ function drawPmCanvas(){
     }
   });
 
-  // Draw connections (edge-to-edge with collision avoidance)
-  const usedAnchors={}; // track used anchor pairs per node
+  // Pre-calculate which anchors each node's outgoing connections use
+  const outCount={};
+  d.connections.forEach(c=>{ outCount[c.from]=(outCount[c.from]||0)+1; });
+
+  // Track assigned from-anchors per node as we draw
+  const assignedFromAnchor={};
+
+  // Draw connections (edge-to-edge)
   d.connections.forEach((c,ci)=>{
     const from=d.nodes.find(n=>n.id===c.from);
     const to=d.nodes.find(n=>n.id===c.to);
@@ -5113,45 +5119,53 @@ function drawPmCanvas(){
     const fAnchors=getNodeAnchors(from);
     const tAnchors=getNodeAnchors(to);
 
-    // Count how many connections already use each from-anchor
-    const fromKey=c.from;
-    if(!usedAnchors[fromKey]) usedAnchors[fromKey]={};
-    const toKey=c.to;
+    // Assign from-anchor: spread outgoing connections across different anchors
+    if(!assignedFromAnchor[c.from]) assignedFromAnchor[c.from]=0;
+    const fromIdx=assignedFromAnchor[c.from];
+    assignedFromAnchor[c.from]++;
 
-    // Find best anchor pair, avoiding already-used from-anchors
-    const anchorPairs=[];
-    fAnchors.forEach(fa=>{
+    // For the from-anchor: if node has multiple outgoing, rotate through anchors
+    // Order: right, bottom, left, top (natural flow for decisions)
+    const anchorOrder=['right','bottom','left','top'];
+    let bestF, bestT;
+
+    if(outCount[c.from]>1){
+      // Force different anchors for each outgoing connection
+      const forcedAnchorId=anchorOrder[fromIdx % 4];
+      bestF=fAnchors.find(a=>a.id===forcedAnchorId)||fAnchors[0];
+      // Find closest target anchor to this forced from-anchor
+      let bd=Infinity;
       tAnchors.forEach(ta=>{
-        const dist=Math.pow(fa.x-ta.x,2)+Math.pow(fa.y-ta.y,2);
-        const usedCount=usedAnchors[fromKey][fa.id]||0;
-        anchorPairs.push({fa,ta,dist,usedCount});
+        const dd=(bestF.x-ta.x)**2+(bestF.y-ta.y)**2;
+        if(dd<bd){bd=dd;bestT=ta}
       });
-    });
-    // Sort by: least used first, then closest
-    anchorPairs.sort((a,b)=>(a.usedCount-b.usedCount)*100000+(a.dist-b.dist));
-    const best=anchorPairs[0];
-    const bestF=best.fa, bestT=best.ta;
-    usedAnchors[fromKey][bestF.id]=(usedAnchors[fromKey][bestF.id]||0)+1;
+    } else {
+      // Single outgoing — find closest pair
+      let bd=Infinity;
+      fAnchors.forEach(fa=>tAnchors.forEach(ta=>{
+        const dd=(fa.x-ta.x)**2+(fa.y-ta.y)**2;
+        if(dd<bd){bd=dd;bestF=fa;bestT=ta}
+      }));
+    }
 
     const fx=bestF.x, fy=bestF.y, tx=bestT.x, ty=bestT.y;
-
-    // Check if there's a reverse connection (B→A when drawing A→B)
-    const reverseExists=d.connections.some((oc,oi)=>oi<ci&&oc.from===c.to&&oc.to===c.from);
-    const sameNodeConns=d.connections.filter((oc,oi)=>oi<ci&&oc.from===c.from&&oc.to===c.to).length;
-    const offset=(reverseExists?15:0)+(sameNodeConns*20);
 
     ctx.strokeStyle='#6B6960';
     ctx.lineWidth=2;
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(fx,fy);
-    // Smart curve with offset for overlapping connections
-    const bend=Math.max(Math.min(Math.abs(tx-fx),Math.abs(ty-fy),60),30)+offset;
+    // Smart curve based on anchor directions
+    const bend=Math.max(Math.min(Math.abs(tx-fx),Math.abs(ty-fy),80),40);
     let cx1=fx,cy1=fy,cx2=tx,cy2=ty;
-    if(bestF.id==='right'||bestF.id==='left'){ cx1=fx+(bestF.id==='right'?bend:-bend); cy1=fy+offset*(reverseExists?1:-1); }
-    else { cy1=fy+(bestF.id==='bottom'?bend:-bend); cx1=fx+offset*(reverseExists?1:-1); }
-    if(bestT.id==='right'||bestT.id==='left'){ cx2=tx+(bestT.id==='right'?bend:-bend); cy2=ty+offset*(reverseExists?-1:1); }
-    else { cy2=ty+(bestT.id==='bottom'?bend:-bend); cx2=tx+offset*(reverseExists?-1:1); }
+    if(bestF.id==='right') cx1=fx+bend;
+    else if(bestF.id==='left') cx1=fx-bend;
+    else if(bestF.id==='bottom') cy1=fy+bend;
+    else cy1=fy-bend;
+    if(bestT.id==='right') cx2=tx+bend;
+    else if(bestT.id==='left') cx2=tx-bend;
+    else if(bestT.id==='bottom') cy2=ty+bend;
+    else cy2=ty-bend;
     ctx.bezierCurveTo(cx1,cy1,cx2,cy2,tx,ty);
     ctx.stroke();
 
