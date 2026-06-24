@@ -5119,28 +5119,14 @@ function drawPmCanvas(){
     const fAnchors=getNodeAnchors(from);
     const tAnchors=getNodeAnchors(to);
 
-    // Assign from-anchor: spread outgoing connections across different anchors
-    if(!assignedFromAnchor[c.from]) assignedFromAnchor[c.from]=0;
-    const fromIdx=assignedFromAnchor[c.from];
-    assignedFromAnchor[c.from]++;
-
-    // For the from-anchor: if node has multiple outgoing, rotate through anchors
-    // Order: right, bottom, left, top (natural flow for decisions)
-    const anchorOrder=['right','bottom','left','top'];
     let bestF, bestT;
 
-    if(outCount[c.from]>1){
-      // Force different anchors for each outgoing connection
-      const forcedAnchorId=anchorOrder[fromIdx % 4];
-      bestF=fAnchors.find(a=>a.id===forcedAnchorId)||fAnchors[0];
-      // Find closest target anchor to this forced from-anchor
-      let bd=Infinity;
-      tAnchors.forEach(ta=>{
-        const dd=(bestF.x-ta.x)**2+(bestF.y-ta.y)**2;
-        if(dd<bd){bd=dd;bestT=ta}
-      });
+    // Use stored anchors if available (from drag-to-connect)
+    if(c.fromAnchor && c.toAnchor){
+      bestF=fAnchors.find(a=>a.id===c.fromAnchor)||fAnchors[0];
+      bestT=tAnchors.find(a=>a.id===c.toAnchor)||tAnchors[0];
     } else {
-      // Single outgoing — find closest pair
+      // Legacy connections — find closest pair
       let bd=Infinity;
       fAnchors.forEach(fa=>tAnchors.forEach(ta=>{
         const dd=(fa.x-ta.x)**2+(fa.y-ta.y)**2;
@@ -5377,7 +5363,7 @@ function attachPmEvents(){
     // Check anchor hit first
     const anchorHit=hitTestAnchor(pos);
     if(anchorHit){
-      pmAnchorDrag={fromId:anchorHit.nodeId, startX:anchorHit.anchor.x, startY:anchorHit.anchor.y, mouseX:pos.x, mouseY:pos.y};
+      pmAnchorDrag={fromId:anchorHit.nodeId, fromAnchorId:anchorHit.anchor.id, startX:anchorHit.anchor.x, startY:anchorHit.anchor.y, mouseX:pos.x, mouseY:pos.y};
       canvas.style.cursor='crosshair';
       e.preventDefault();
       return;
@@ -5481,14 +5467,18 @@ function attachPmEvents(){
       const targetNode=hitTestNode(pos);
       if(targetNode&&targetNode.id!==pmAnchorDrag.fromId){
         const d=getPmDiagram();
-        const exists=d.connections.some(c=>c.from===pmAnchorDrag.fromId&&c.to===targetNode.id);
-        if(!exists){
-          const fromNode=d.nodes.find(n=>n.id===pmAnchorDrag.fromId);
-          const autoLabel=getAutoConnLabel(d,fromNode);
-          pmSaveUndo();
-          d.connections.push({id:uid(),from:pmAnchorDrag.fromId,to:targetNode.id,label:autoLabel});
-          saveData();
-        }
+        const fromNode=d.nodes.find(n=>n.id===pmAnchorDrag.fromId);
+        const autoLabel=getAutoConnLabel(d,fromNode);
+        // Find closest target anchor to drop position
+        const tAnchors=getNodeAnchors(targetNode);
+        let bestTA=tAnchors[0], bestDist=Infinity;
+        tAnchors.forEach(ta=>{
+          const dd=(pos.x-ta.x)**2+(pos.y-ta.y)**2;
+          if(dd<bestDist){bestDist=dd;bestTA=ta}
+        });
+        pmSaveUndo();
+        d.connections.push({id:uid(),from:pmAnchorDrag.fromId,to:targetNode.id,fromAnchor:pmAnchorDrag.fromAnchorId,toAnchor:bestTA.id,label:autoLabel});
+        saveData();
       }
       pmAnchorDrag=null;
       canvas.style.cursor='default';
