@@ -476,8 +476,9 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
     <input type="color" id="pm-color" value="#0F6E56" style="width:28px;height:24px;border:1px solid var(--b2);border-radius:4px;cursor:pointer" onchange="colorPmSelected(this.value)">
     <span style="font-size:11px;color:var(--t3);margin-left:auto" id="pm-status">Click canvas to add nodes</span>
   </div>
-  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;position:relative">
-    <canvas id="pm-canvas" width="1400" height="700" style="width:100%;cursor:default;display:block"></canvas>
+  <div style="background:var(--sf);border:1px solid var(--b1);border-radius:var(--rlg);overflow:hidden;position:relative" id="pm-canvas-wrap">
+    <canvas id="pm-canvas" width="1400" height="700" style="width:100%;cursor:default;display:block" tabindex="0"></canvas>
+    <textarea id="pm-edit-input" style="display:none;position:absolute;background:rgba(255,255,255,.95);border:2px solid var(--teal);border-radius:6px;padding:4px 8px;font-family:Inter,sans-serif;font-size:12px;text-align:center;resize:none;outline:none;z-index:10;overflow:hidden;line-height:1.3" rows="2"></textarea>
   </div>
 </div>
 
@@ -4678,11 +4679,13 @@ function buildLeaveCalendar(){
 // ─── PROCESS MAPS ───────────────────────────────────────────────────────────
 let pmDiagrams = [{id:'pm_default',name:'Main Process',nodes:[],connections:[]}];
 let pmCurDiagramId = 'pm_default';
-let pmSelected = null; // node id
+let pmSelected = null;
 let pmConnectMode = false;
 let pmConnectFrom = null;
-let pmDragging = null; // {nodeId, offsetX, offsetY}
-let pmEditing = null; // node id being text-edited
+let pmDragging = null;
+let pmEditing = null;
+let pmHovered = null; // node id under mouse
+let pmAnchorDrag = null; // {fromId, fromAnchor, mouseX, mouseY}
 
 function getPmDiagram(){ return pmDiagrams.find(d=>d.id===pmCurDiagramId) || pmDiagrams[0]; }
 
@@ -4791,26 +4794,50 @@ function drawPmCanvas(){
 
   const d=getPmDiagram();
 
-  // Draw connections
+  // Auto-resize nodes to fit text
+  d.nodes.forEach(n=>{
+    ctx.font=(n.type==='note'?'11':'12')+'px Inter,sans-serif';
+    const lines=wrapText(ctx,n.label||'',n.w-16);
+    const lineH=n.type==='note'?14:16;
+    const textH=lines.length*lineH+16;
+    if(textH>n.h) n.h=textH;
+  });
+
+  // Draw connections (edge-to-edge)
   d.connections.forEach(c=>{
     const from=d.nodes.find(n=>n.id===c.from);
     const to=d.nodes.find(n=>n.id===c.to);
     if(!from||!to) return;
-    const fx=from.x+from.w/2, fy=from.y+from.h/2;
-    const tx=to.x+to.w/2, ty=to.y+to.h/2;
+
+    // Find closest anchor pair
+    const fAnchors=getNodeAnchors(from);
+    const tAnchors=getNodeAnchors(to);
+    let bestDist=Infinity, bestF=fAnchors[0], bestT=tAnchors[0];
+    fAnchors.forEach(fa=>{
+      tAnchors.forEach(ta=>{
+        const d2=Math.pow(fa.x-ta.x,2)+Math.pow(fa.y-ta.y,2);
+        if(d2<bestDist){ bestDist=d2; bestF=fa; bestT=ta; }
+      });
+    });
+    const fx=bestF.x, fy=bestF.y, tx=bestT.x, ty=bestT.y;
 
     ctx.strokeStyle='#6B6960';
     ctx.lineWidth=2;
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(fx,fy);
-    // Curved line
-    const mx=(fx+tx)/2, my=(fy+ty)/2;
-    const cx1=mx, cy1=fy, cx2=mx, cy2=ty;
+    // Smart curve based on anchor direction
+    const dx=tx-fx, dy=ty-fy;
+    const bend=Math.min(Math.abs(dx),Math.abs(dy),60);
+    let cx1=fx,cy1=fy,cx2=tx,cy2=ty;
+    if(bestF.id==='right'||bestF.id==='left'){ cx1=fx+(bestF.id==='right'?bend:-bend); }
+    else { cy1=fy+(bestF.id==='bottom'?bend:-bend); }
+    if(bestT.id==='right'||bestT.id==='left'){ cx2=tx+(bestT.id==='right'?bend:-bend); }
+    else { cy2=ty+(bestT.id==='bottom'?bend:-bend); }
     ctx.bezierCurveTo(cx1,cy1,cx2,cy2,tx,ty);
     ctx.stroke();
 
-    // Arrow head
+    // Arrow head at edge
     const angle=Math.atan2(ty-cy2,tx-cx2);
     const aLen=10;
     ctx.fillStyle='#6B6960';
@@ -4822,10 +4849,15 @@ function drawPmCanvas(){
 
     // Label
     if(c.label){
+      const mx=(fx+tx)/2, my=(fy+ty)/2;
+      ctx.fillStyle='#fff';
+      const tw=ctx.measureText(c.label).width+8;
+      roundRect(ctx,mx-tw/2,my-10,tw,16,4);
+      ctx.fill();
       ctx.fillStyle='#6B6960';
       ctx.font='10px Inter,sans-serif';
-      ctx.textAlign='center';
-      ctx.fillText(c.label,mx,my-6);
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(c.label,mx,my-2);
     }
   });
 
@@ -4875,6 +4907,15 @@ function drawPmCanvas(){
 
     ctx.restore();
 
+    // Anchor dots on hover/selected
+    if(n.id===pmSelected||n.id===pmHovered){
+      getNodeAnchors(n).forEach(a=>{
+        ctx.beginPath(); ctx.arc(a.x,a.y,5,0,Math.PI*2);
+        ctx.fillStyle='var(--teal)'; ctx.fill();
+        ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.stroke();
+      });
+    }
+
     // Label
     ctx.fillStyle=n.type==='start'?'#fff':n.type==='note'?'#92400E':'#1A1917';
     ctx.font=(n.type==='note'?'11':'12')+'px Inter,sans-serif';
@@ -4911,6 +4952,29 @@ function wrapText(ctx,text,maxW){
   return lines.length?lines:[''];
 }
 
+function getNodeAnchors(n){
+  const cx=n.x+n.w/2, cy=n.y+n.h/2;
+  return [
+    {id:'top',x:cx,y:n.y},
+    {id:'right',x:n.x+n.w,y:cy},
+    {id:'bottom',x:cx,y:n.y+n.h},
+    {id:'left',x:n.x,y:cy},
+  ];
+}
+
+function hitTestAnchor(pos){
+  const d=getPmDiagram();
+  for(let i=d.nodes.length-1;i>=0;i--){
+    const n=d.nodes[i];
+    if(n.id!==pmHovered&&n.id!==pmSelected) continue;
+    const anchors=getNodeAnchors(n);
+    for(const a of anchors){
+      if(Math.abs(pos.x-a.x)<8&&Math.abs(pos.y-a.y)<8) return {nodeId:n.id,anchor:a};
+    }
+  }
+  return null;
+}
+
 function getCanvasPos(e){
   const canvas=el('pm-canvas');
   const rect=canvas.getBoundingClientRect();
@@ -4942,6 +5006,16 @@ function attachPmEvents(){
 
   canvas.addEventListener('mousedown',e=>{
     const pos=getCanvasPos(e);
+
+    // Check anchor hit first
+    const anchorHit=hitTestAnchor(pos);
+    if(anchorHit){
+      pmAnchorDrag={fromId:anchorHit.nodeId, startX:anchorHit.anchor.x, startY:anchorHit.anchor.y, mouseX:pos.x, mouseY:pos.y};
+      canvas.style.cursor='crosshair';
+      e.preventDefault();
+      return;
+    }
+
     const node=hitTestNode(pos);
 
     if(pmConnectMode){
@@ -4953,8 +5027,7 @@ function attachPmEvents(){
           const d=getPmDiagram();
           const exists=d.connections.some(c=>c.from===pmConnectFrom&&c.to===node.id);
           if(!exists){
-            const label=prompt('Connection label (optional):','');
-            d.connections.push({id:uid(),from:pmConnectFrom,to:node.id,label:label||''});
+            d.connections.push({id:uid(),from:pmConnectFrom,to:node.id,label:''});
             saveData();
           }
           pmConnectFrom=null;
@@ -4977,29 +5050,170 @@ function attachPmEvents(){
   });
 
   canvas.addEventListener('mousemove',e=>{
-    if(!pmDragging) return;
     const pos=getCanvasPos(e);
-    const d=getPmDiagram();
-    const n=d.nodes.find(x=>x.id===pmDragging.nodeId);
-    if(n){
-      n.x=Math.max(0,pos.x-pmDragging.offsetX);
-      n.y=Math.max(0,pos.y-pmDragging.offsetY);
+
+    // Anchor drag — draw preview line
+    if(pmAnchorDrag){
+      pmAnchorDrag.mouseX=pos.x;
+      pmAnchorDrag.mouseY=pos.y;
       drawPmCanvas();
+      // Draw preview line on top
+      const ctx=canvas.getContext('2d');
+      const dpr=window.devicePixelRatio||1;
+      ctx.save(); ctx.scale(dpr,dpr);
+      ctx.strokeStyle='var(--teal)';
+      ctx.lineWidth=2;
+      ctx.setLineDash([6,4]);
+      ctx.beginPath();
+      ctx.moveTo(pmAnchorDrag.startX,pmAnchorDrag.startY);
+      ctx.lineTo(pos.x,pos.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Draw circle at cursor
+      ctx.beginPath(); ctx.arc(pos.x,pos.y,5,0,Math.PI*2);
+      ctx.fillStyle='var(--teal)'; ctx.fill();
+      ctx.restore();
+      return;
+    }
+
+    // Normal drag
+    if(pmDragging){
+      const d=getPmDiagram();
+      const n=d.nodes.find(x=>x.id===pmDragging.nodeId);
+      if(n){
+        n.x=Math.max(0,pos.x-pmDragging.offsetX);
+        n.y=Math.max(0,pos.y-pmDragging.offsetY);
+        drawPmCanvas();
+      }
+      return;
+    }
+
+    // Hover detection
+    const node=hitTestNode(pos);
+    const newHovered=node?node.id:null;
+    if(newHovered!==pmHovered){
+      pmHovered=newHovered;
+      canvas.style.cursor=newHovered?'grab':'default';
+      // Check if hovering an anchor
+      const ah=hitTestAnchor(pos);
+      if(ah) canvas.style.cursor='crosshair';
+      drawPmCanvas();
+    } else {
+      const ah=hitTestAnchor(pos);
+      canvas.style.cursor=ah?'crosshair':(newHovered?'grab':'default');
     }
   });
 
-  canvas.addEventListener('mouseup',()=>{
+  canvas.addEventListener('mouseup',e=>{
+    // Anchor drag end — create connection
+    if(pmAnchorDrag){
+      const pos=getCanvasPos(e);
+      const targetNode=hitTestNode(pos);
+      if(targetNode&&targetNode.id!==pmAnchorDrag.fromId){
+        const d=getPmDiagram();
+        const exists=d.connections.some(c=>c.from===pmAnchorDrag.fromId&&c.to===targetNode.id);
+        if(!exists){
+          d.connections.push({id:uid(),from:pmAnchorDrag.fromId,to:targetNode.id,label:''});
+          saveData();
+        }
+      }
+      pmAnchorDrag=null;
+      canvas.style.cursor='default';
+      drawPmCanvas();
+      return;
+    }
+
     if(pmDragging){ saveData(); pmDragging=null; }
   });
 
   canvas.addEventListener('dblclick',e=>{
     const pos=getCanvasPos(e);
     const node=hitTestNode(pos);
-    if(node){
-      const label=prompt('Edit label:',node.label);
-      if(label!==null){ node.label=label; saveData(); drawPmCanvas(); }
+    if(node) startInlineEdit(node);
+  });
+
+  // Keyboard shortcuts
+  canvas.addEventListener('keydown',e=>{
+    if(pmEditing) return; // don't interfere with text editing
+    if(e.key==='Delete'||e.key==='Backspace'){
+      if(pmSelected){ deletePmSelected(); e.preventDefault(); }
+    }
+    if(e.key==='Escape'){
+      pmSelected=null; pmConnectMode=false; pmConnectFrom=null;
+      el('pm-connect-btn').style.background=''; el('pm-connect-btn').style.color='';
+      el('pm-status').textContent='Click canvas to add nodes';
+      drawPmCanvas();
+    }
+    if(e.key==='c'&&!e.ctrlKey&&!e.metaKey){ toggleConnectMode(); }
+    if(e.key==='Enter'&&pmSelected){
+      const d=getPmDiagram();
+      const n=d.nodes.find(x=>x.id===pmSelected);
+      if(n) startInlineEdit(n);
     }
   });
+
+  // Focus canvas on click so keyboard events work
+  canvas.addEventListener('click',()=>canvas.focus());
+
+  // Inline edit input handlers
+  const editInput=el('pm-edit-input');
+  editInput.addEventListener('blur',()=>finishInlineEdit());
+  editInput.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); finishInlineEdit(); }
+    if(e.key==='Escape'){ cancelInlineEdit(); }
+    e.stopPropagation();
+  });
+  editInput.addEventListener('input',()=>{
+    editInput.style.height='auto';
+    editInput.style.height=editInput.scrollHeight+'px';
+  });
+}
+
+function startInlineEdit(node){
+  pmEditing=node.id;
+  const canvas=el('pm-canvas');
+  const wrap=el('pm-canvas-wrap');
+  const input=el('pm-edit-input');
+  const rect=canvas.getBoundingClientRect();
+  const wrapRect=wrap.getBoundingClientRect();
+
+  const scaleX=rect.width/(canvas.width/(window.devicePixelRatio||1));
+  const scaleY=rect.height/(canvas.height/(window.devicePixelRatio||1));
+
+  const left=node.x*scaleX;
+  const top=node.y*scaleY;
+  const w=node.w*scaleX;
+  const h=node.h*scaleY;
+
+  input.style.display='block';
+  input.style.left=(left+2)+'px';
+  input.style.top=(top+2)+'px';
+  input.style.width=(w-4)+'px';
+  input.style.minHeight=(h-4)+'px';
+  input.style.height='auto';
+  input.value=node.label||'';
+  input.focus();
+  input.select();
+}
+
+function finishInlineEdit(){
+  if(!pmEditing) return;
+  const d=getPmDiagram();
+  const n=d.nodes.find(x=>x.id===pmEditing);
+  const input=el('pm-edit-input');
+  if(n&&input.value.trim()){ n.label=input.value.trim(); }
+  pmEditing=null;
+  input.style.display='none';
+  saveData(); drawPmCanvas();
+  el('pm-canvas').focus();
+}
+
+function cancelInlineEdit(){
+  pmEditing=null;
+  const input=el('pm-edit-input');
+  input.style.display='none';
+  drawPmCanvas();
+  el('pm-canvas').focus();
 }
 
 function exportDiagramPng(){
