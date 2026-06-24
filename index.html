@@ -406,6 +406,7 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
       <button class="vsw" id="rh-comfort" onclick="setRowH('comfort')">Comfortable</button>
     </div>
     <button class="btn btn-sm" onclick="scrollToday()">Today</button>
+    <button class="btn btn-sm" onclick="exportTimelineXl()">⬇ Export Excel</button>
   </div>
   <div class="legend">
     <div class="leg"><div class="leg-dot" style="background:var(--red);border-radius:50%"></div>Milestone</div>
@@ -968,6 +969,45 @@ main{max-width:1440px;margin:0 auto;padding:24px 20px}
   <div class="modal-ftr">
     <button class="btn" onclick="closeModal('leaveconflict')">Keep allocations</button>
     <button class="btn btn-danger" onclick="applyLeaveConflictClear()">Clear selected weeks</button>
+  </div>
+</div>
+</div>
+
+<!-- DUPLICATE MILESTONES MODAL -->
+<div class="modal-bg" id="modal-dupms" onclick="if(event.target===this)closeModal('dupms')">
+<div class="modal" style="width:520px">
+  <div class="modal-hdr">
+    <div>
+      <h3>Duplicate Milestones</h3>
+      <div style="font-size:11px;color:var(--t3);margin-top:2px" id="dupms-sub">Copy milestones from another site</div>
+    </div>
+    <button class="btn-icon" onclick="closeModal('dupms')">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="frow">
+      <div class="field"><label>Source — copy from</label>
+        <select id="dupms-source" class="dyn-select" style="width:100%" onchange="renderDupMsPreview()"></select>
+      </div>
+      <div class="field"><label>Target site *</label>
+        <select id="dupms-target-site" class="dyn-select" style="width:100%"></select>
+      </div>
+    </div>
+    <div class="field"><label>Date offset (days) — shift all dates by</label>
+      <input id="dupms-offset" type="number" value="0" step="7" placeholder="e.g. 14 to shift 2 weeks forward">
+      <div style="font-size:10px;color:var(--t3);margin-top:2px">Positive = forward, negative = backward. Use 0 to keep same dates.</div>
+    </div>
+    <div style="border-top:1px solid var(--b1);padding-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span class="sec-lbl" style="margin:0">Milestones to copy</span>
+        <button class="btn btn-sm" onclick="toggleAllDupMs(true)">Select all</button>
+        <button class="btn btn-sm" onclick="toggleAllDupMs(false)">Deselect all</button>
+      </div>
+      <div id="dupms-list" style="max-height:250px;overflow-y:auto"></div>
+    </div>
+  </div>
+  <div class="modal-ftr">
+    <button class="btn" onclick="closeModal('dupms')">Cancel</button>
+    <button class="btn btn-primary" onclick="applyDuplicateMs()">Duplicate selected</button>
   </div>
 </div>
 </div>
@@ -1582,6 +1622,145 @@ function ganttDragEnd(e){
   renderAll();
 }
 
+// ─── TIMELINE EXCEL EXPORT ───────────────────────────────────────────────────
+async function exportTimelineXl(){
+  if(!milestones.length){ alert('No milestones to export.'); return; }
+
+  const wb=new ExcelJS.Workbook(); wb.creator='notXL';
+
+  // Generate weeks covering all milestones
+  const allDates=milestones.flatMap(m=>[m.start,m.end]).filter(Boolean).sort();
+  if(!allDates.length){ alert('No milestone dates set.'); return; }
+  const rangeStart=new Date(allDates[0]+'T00:00');
+  rangeStart.setDate(rangeStart.getDate()-((rangeStart.getDay()+6)%7)); // snap to Monday
+  const rangeEnd=new Date(allDates[allDates.length-1]+'T00:00');
+  rangeEnd.setDate(rangeEnd.getDate()+7);
+  const weeks=[];
+  let cur=new Date(rangeStart);
+  while(cur<=rangeEnd){
+    const wEnd=new Date(cur); wEnd.setDate(wEnd.getDate()+6);
+    weeks.push({start:cur.toISOString().slice(0,10), end:wEnd.toISOString().slice(0,10), label:cur.toLocaleDateString('en-GB',{day:'numeric',month:'short'})});
+    cur.setDate(cur.getDate()+7);
+  }
+
+  const thinBorder={top:{style:'thin',color:{argb:'FFE4E2DC'}},bottom:{style:'thin',color:{argb:'FFE4E2DC'}},left:{style:'thin',color:{argb:'FFE4E2DC'}},right:{style:'thin',color:{argb:'FFE4E2DC'}}};
+  const whiteFont={color:{argb:'FFFFFFFF'},bold:true,size:10};
+
+  // One sheet per project
+  projects.forEach(proj=>{
+    const pms=milestones.filter(m=>m.projectId===proj.id);
+    if(!pms.length) return;
+    const sites=[...new Set([...(proj.sites||[]),...pms.map(m=>m.site)])].filter(Boolean);
+    const sheetName=(proj.name||'Project').slice(0,31);
+    const ws=wb.addWorksheet(sheetName,{views:[{state:'frozen',xSplit:4,ySplit:2}]});
+
+    const projArgb='FF'+proj.color.replace('#','');
+    const projFill={type:'pattern',pattern:'solid',fgColor:{argb:projArgb}};
+    const lightFill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+(proj.colorLight||'#E1F5EE').replace('#','')}};
+    const grayFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F1EE'}};
+
+    // Row 1: Month headers
+    const r1=ws.getRow(1);
+    ['Milestone','Site','Start','End'].forEach((t,i)=>{
+      r1.getCell(i+1).value=t; r1.getCell(i+1).fill=projFill; r1.getCell(i+1).font=whiteFont; r1.getCell(i+1).border=thinBorder;
+    });
+    // Group weeks by month
+    const monthGroups=[];
+    weeks.forEach((w,wi)=>{
+      const d=new Date(w.start+'T00:00');
+      const mLabel=d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'});
+      const last=monthGroups[monthGroups.length-1];
+      if(last&&last.label===mLabel) last.count++;
+      else monthGroups.push({label:mLabel,start:5+wi,count:1});
+    });
+    monthGroups.forEach(mg=>{
+      if(mg.count>1) ws.mergeCells(1,mg.start,1,mg.start+mg.count-1);
+      ws.getCell(1,mg.start).value=mg.label;
+      ws.getCell(1,mg.start).fill=projFill; ws.getCell(1,mg.start).font=whiteFont;
+      ws.getCell(1,mg.start).alignment={horizontal:'center'}; ws.getCell(1,mg.start).border=thinBorder;
+      for(let c=mg.start;c<mg.start+mg.count;c++) ws.getCell(1,c).border=thinBorder;
+    });
+
+    // Row 2: Week headers
+    const r2=ws.getRow(2);
+    ['','','',''].forEach((t,i)=>{r2.getCell(i+1).fill=grayFill;r2.getCell(i+1).border=thinBorder});
+    weeks.forEach((w,wi)=>{
+      const c=5+wi;
+      r2.getCell(c).value=w.label;
+      r2.getCell(c).font={size:8,bold:true,color:{argb:'FF6B6960'}};
+      r2.getCell(c).fill=grayFill; r2.getCell(c).alignment={horizontal:'center'};
+      r2.getCell(c).border=thinBorder;
+    });
+
+    // Milestone rows grouped by site
+    let curRow=3;
+    sites.forEach(site=>{
+      // Site header row
+      const siteRow=ws.getRow(curRow);
+      ws.mergeCells(curRow,1,curRow,4);
+      siteRow.getCell(1).value=site;
+      siteRow.getCell(1).font={bold:true,size:11,color:{argb:projArgb}};
+      siteRow.getCell(1).fill=lightFill; siteRow.getCell(1).border=thinBorder;
+      for(let c=2;c<=4;c++){siteRow.getCell(c).fill=lightFill;siteRow.getCell(c).border=thinBorder}
+      weeks.forEach((w,wi)=>{
+        const c=5+wi;
+        siteRow.getCell(c).fill=lightFill; siteRow.getCell(c).border=thinBorder;
+      });
+      siteRow.height=20;
+      curRow++;
+
+      // Milestones for this site
+      const sms=pms.filter(m=>m.site===site).sort((a,b)=>(a.start||'')>(b.start||'')?1:-1);
+      sms.forEach(ms=>{
+        const row=ws.getRow(curRow);
+        row.getCell(1).value=ms.name; row.getCell(1).font={size:10,bold:true}; row.getCell(1).border=thinBorder;
+        row.getCell(2).value=ms.site; row.getCell(2).font={size:9,color:{argb:'FF6B6960'}}; row.getCell(2).border=thinBorder;
+        row.getCell(3).value=ms.start?new Date(ms.start+'T00:00'):null;
+        row.getCell(3).numFmt='DD-MMM-YY'; row.getCell(3).font={size:9}; row.getCell(3).border=thinBorder;
+        row.getCell(4).value=ms.end?new Date(ms.end+'T00:00'):null;
+        row.getCell(4).numFmt='DD-MMM-YY'; row.getCell(4).font={size:9}; row.getCell(4).border=thinBorder;
+
+        const msArgb='FF'+ms.color.replace('#','');
+        const msFill={type:'pattern',pattern:'solid',fgColor:{argb:msArgb}};
+        const msLightFill={type:'pattern',pattern:'solid',fgColor:{argb:msArgb+'22'.slice(-2)}};
+
+        // Fill week cells where milestone is active
+        weeks.forEach((w,wi)=>{
+          const c=5+wi;
+          const isActive=ms.start&&(ms.end||ms.start)&&ms.start<=w.end&&(ms.end||ms.start)>=w.start;
+          if(isActive){
+            row.getCell(c).fill=msFill;
+            row.getCell(c).font={size:8,bold:true,color:{argb:'FFFFFFFF'}};
+            // Show name on first active week
+            const isFirst=!weeks[wi-1]||!(ms.start<=weeks[wi-1].end&&(ms.end||ms.start)>=weeks[wi-1].start);
+            if(isFirst) row.getCell(c).value=ms.name;
+            row.getCell(c).alignment={horizontal:'center'};
+          }
+          row.getCell(c).border=thinBorder;
+        });
+
+        row.height=22;
+        curRow++;
+      });
+
+      // Empty row between sites
+      curRow++;
+    });
+
+    // Column widths
+    ws.getColumn(1).width=30; ws.getColumn(2).width=12; ws.getColumn(3).width=12; ws.getColumn(4).width=12;
+    for(let i=0;i<weeks.length;i++) ws.getColumn(5+i).width=10;
+  });
+
+  // Download
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='notXL-Timeline-'+new Date().toISOString().slice(0,10)+'.xlsx';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
 // ─── HIERARCHY ───────────────────────────────────────────────────────────────
 function buildHierarchy(){
   const body=el('hier-body');
@@ -1614,6 +1793,7 @@ function buildHierarchy(){
             <h3>${site}</h3>
             <span class="meta">${sms.length} milestone${sms.length!==1?'s':''}</span>
             <button class="btn-icon btn-sm" style="margin-left:auto" onclick="event.stopPropagation();openMsModalForSite('${proj.id}','${site}')" title="Add milestone">+ Milestone</button>
+            <button class="btn-icon btn-sm" onclick="event.stopPropagation();openDuplicateMsModal('${proj.id}','${site}')" title="Duplicate milestones from another site">⧉ Duplicate</button>
             <button class="btn-icon btn-sm" onclick="event.stopPropagation();showDelSite('${proj.id}','${site}')" title="Delete site" style="color:var(--t3)">🗑</button>
             <span class="chev${sOpen?' open':''}">▶</span>
           </div>
@@ -1855,6 +2035,116 @@ function openMsModal(editId){
   updateMsLeavePreview();
   el('modal-milestone').classList.add('open');
 }
+// ── DUPLICATE MILESTONES ─────────────────────────────────────────────────────
+let _dupTargetProjId='', _dupTargetSite='';
+
+function openDuplicateMsModal(projId, targetSite){
+  _dupTargetProjId=projId;
+  _dupTargetSite=targetSite;
+  const proj=projects.find(p=>p.id===projId);
+  el('dupms-sub').textContent='Copy milestones into '+proj.name+' / '+targetSite;
+  el('dupms-offset').value=0;
+
+  // Build source options: all project/site combos that have milestones, excluding target
+  let opts='';
+  projects.forEach(p=>{
+    (p.sites||[]).forEach(s=>{
+      const sms=milestones.filter(m=>m.projectId===p.id&&m.site===s);
+      if(!sms.length) return;
+      if(p.id===projId&&s===targetSite) return;
+      opts+=`<option value="${p.id}|${s}">${p.name} / ${s} (${sms.length} milestones)</option>`;
+    });
+  });
+  if(!opts){ alert('No other sites with milestones to copy from.'); return; }
+  el('dupms-source').innerHTML=opts;
+  // Target site dropdown — all sites in the target project
+  const targetSites=(proj.sites||[]);
+  el('dupms-target-site').innerHTML=targetSites.map(s=>`<option value="${s}"${s===targetSite?' selected':''}>${s}</option>`).join('');
+  renderDupMsPreview();
+  el('modal-dupms').classList.add('open');
+}
+
+function renderDupMsPreview(){
+  const val=el('dupms-source').value;
+  if(!val){ el('dupms-list').innerHTML='<div style="color:var(--t3);font-size:12px">Select a source site</div>'; return; }
+  const [srcProjId,srcSite]=val.split('|');
+  const sms=milestones.filter(m=>m.projectId===srcProjId&&m.site===srcSite);
+
+  el('dupms-list').innerHTML=sms.map((ms,i)=>{
+    const s=statusOf(ms.progress);
+    return`<label style="display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--b1);border-radius:var(--rsm);margin-bottom:3px;cursor:pointer;background:var(--sf)" onmouseover="this.style.background='var(--s2)'" onmouseout="this.style.background='var(--sf)'">
+      <input type="checkbox" id="dupms-${i}" checked style="accent-color:var(--teal)">
+      <div style="width:7px;height:7px;border-radius:50%;background:${ms.color};flex-shrink:0"></div>
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:500">${ms.name}</div>
+        <div style="font-size:10px;color:var(--t3)">${fmtS(ms.start)}${ms.end&&ms.end!==ms.start?' – '+fmtS(ms.end):''} · ${ms.owner||'—'}</div>
+      </div>
+      <span class="badge" style="background:${s.bg};color:${s.c}">${ms.progress}%</span>
+    </label>`;
+  }).join('');
+}
+
+function toggleAllDupMs(checked){
+  document.querySelectorAll('[id^="dupms-"]').forEach(cb=>{
+    if(cb.type==='checkbox') cb.checked=checked;
+  });
+}
+
+function applyDuplicateMs(){
+  const val=el('dupms-source').value;
+  if(!val) return;
+  const [srcProjId,srcSite]=val.split('|');
+  const sms=milestones.filter(m=>m.projectId===srcProjId&&m.site===srcSite);
+  const offset=parseInt(el('dupms-offset').value)||0;
+  const targetSite=el('dupms-target-site').value;
+  if(!targetSite){ alert('Please select a target site.'); return; }
+
+  let count=0;
+  sms.forEach((ms,i)=>{
+    const cb=el('dupms-'+i);
+    if(!cb||!cb.checked) return;
+
+    const newStart=offset&&ms.start?shiftDate(ms.start,offset):(ms.start||'');
+    const newEnd=offset&&ms.end?shiftDate(ms.end,offset):(ms.end||'');
+
+    milestones.push({
+      id:uid(),
+      projectId:_dupTargetProjId,
+      site:targetSite,
+      name:ms.name,
+      start:newStart,
+      end:newEnd,
+      owner:ms.owner||'',
+      color:ms.color,
+      colorLight:ms.colorLight,
+      progress:0,
+      deps:[...(ms.deps||[])],
+      teamIds:[],
+      agenda:(ms.agenda||[]).map(a=>({...a,id:uid()})),
+      tasks:(ms.tasks||[]).map(t=>({...t,id:uid(),done:false})),
+    });
+    count++;
+  });
+
+  if(count){
+    const proj=projects.find(p=>p.id===_dupTargetProjId);
+    logAudit('created','milestone','Duplicated '+count+' milestones',[
+      {field:'Source',to:val.replace('|',' / ')},
+      {field:'Target',to:(proj?proj.name:'')+' / '+targetSite},
+      {field:'Date offset',to:offset+' days'}
+    ]);
+  }
+
+  closeModal('dupms');
+  renderAll();
+}
+
+function shiftDate(dateStr, days){
+  const d=new Date(dateStr+'T00:00');
+  d.setDate(d.getDate()+days);
+  return d.toISOString().slice(0,10);
+}
+
 function openMsModalForSite(projId,site){
   openMsModal(); setTimeout(()=>{ el('ms-proj').value=projId; populateSiteSel(site) },50);
 }
