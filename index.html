@@ -5141,23 +5141,41 @@ function drawPmCanvas(){
     ctx.setLineDash([]);
     ctx.beginPath();
     ctx.moveTo(fx,fy);
-    // Smart curve based on anchor directions
-    const bend=Math.max(Math.min(Math.abs(tx-fx),Math.abs(ty-fy),80),40);
-    let cx1=fx,cy1=fy,cx2=tx,cy2=ty;
-    if(bestF.id==='right') cx1=fx+bend;
-    else if(bestF.id==='left') cx1=fx-bend;
-    else if(bestF.id==='bottom') cy1=fy+bend;
-    else cy1=fy-bend;
-    if(bestT.id==='right') cx2=tx+bend;
-    else if(bestT.id==='left') cx2=tx-bend;
-    else if(bestT.id==='bottom') cy2=ty+bend;
-    else cy2=ty-bend;
-    ctx.bezierCurveTo(cx1,cy1,cx2,cy2,tx,ty);
+    // Right-angle connector: extend from anchor, then route to target
+    const stub=20;
+    let mx1=fx,my1=fy,mx2=tx,my2=ty;
+    if(bestF.id==='right'){ mx1=fx+stub; my1=fy; }
+    else if(bestF.id==='left'){ mx1=fx-stub; my1=fy; }
+    else if(bestF.id==='bottom'){ mx1=fx; my1=fy+stub; }
+    else { mx1=fx; my1=fy-stub; }
+    if(bestT.id==='right'){ mx2=tx+stub; my2=ty; }
+    else if(bestT.id==='left'){ mx2=tx-stub; my2=ty; }
+    else if(bestT.id==='bottom'){ mx2=tx; my2=ty+stub; }
+    else { mx2=tx; my2=ty-stub; }
+    // Route: from → stub1 → midpoint → stub2 → to
+    const isHorizF=(bestF.id==='right'||bestF.id==='left');
+    const isHorizT=(bestT.id==='right'||bestT.id==='left');
+    if(isHorizF&&isHorizT){
+      const midX=(mx1+mx2)/2;
+      ctx.lineTo(mx1,my1); ctx.lineTo(midX,my1); ctx.lineTo(midX,my2); ctx.lineTo(mx2,my2);
+    } else if(!isHorizF&&!isHorizT){
+      const midY=(my1+my2)/2;
+      ctx.lineTo(mx1,my1); ctx.lineTo(mx1,midY); ctx.lineTo(mx2,midY); ctx.lineTo(mx2,my2);
+    } else if(isHorizF&&!isHorizT){
+      ctx.lineTo(mx1,my1); ctx.lineTo(mx2,my1); ctx.lineTo(mx2,my2);
+    } else {
+      ctx.lineTo(mx1,my1); ctx.lineTo(mx1,my2); ctx.lineTo(mx2,my2);
+    }
+    ctx.lineTo(tx,ty);
     ctx.stroke();
 
-    // Arrow head at edge
-    const angle=Math.atan2(ty-cy2,tx-cx2);
+    // Arrow head — direction based on target anchor
     const aLen=10;
+    let angle=0;
+    if(bestT.id==='top') angle=Math.PI/2;
+    else if(bestT.id==='bottom') angle=-Math.PI/2;
+    else if(bestT.id==='left') angle=0;
+    else angle=Math.PI;
     ctx.fillStyle='#6B6960';
     ctx.beginPath();
     ctx.moveTo(tx,ty);
