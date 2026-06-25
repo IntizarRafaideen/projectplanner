@@ -2175,7 +2175,10 @@ async function exportMsSessionsXl(msId){
     row.getCell(1).font=boldFont;
     row.getCell(2).value=s.owner||'';
     row.getCell(2).font={size:10,color:{argb:'FF6B6960'}};
-    row.getCell(3).value=s.date?new Date(s.date+'T00:00'):null;
+    if(s.date){
+      const [yy,mm,dd]=s.date.split('-').map(Number);
+      row.getCell(3).value=new Date(yy,mm-1,dd,12,0,0);
+    }
     row.getCell(3).numFmt='DD-MMM-YY';
     row.getCell(4).value=s.startTime||'';
     row.getCell(5).value=s.endTime||'';
