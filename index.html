@@ -1930,7 +1930,7 @@ function msDetail(ms){
         <button class="add-row" onclick="addAg('${ms.id}')">+ Add agenda item</button>
       </div>
       <div class="dsec full">
-        <h4>Sessions / Schedule</h4>
+        <h4 style="display:flex;align-items:center;gap:8px">Sessions / Schedule <button class="btn btn-sm" onclick="event.stopPropagation();exportMsSessionsXl('${ms.id}')" style="font-size:9px;padding:2px 6px">⬇ Excel</button></h4>
         <table class="ag-table"><thead>
           <tr><th style="width:140px">Session</th><th style="width:100px">Owner</th><th style="width:80px">Date</th><th style="width:54px">Start</th><th style="width:54px">End</th><th style="width:50px">Hrs</th><th>Timeline</th><th style="width:22px"></th></tr>
         </thead><tbody>
@@ -2117,6 +2117,98 @@ function delSession(msId,i){
   const ms=milestones.find(m=>m.id===msId); if(!ms||!ms.sessions) return;
   ms.sessions.splice(i,1);
   rerender(msId);
+}
+
+async function exportMsSessionsXl(msId){
+  const ms=milestones.find(m=>m.id===msId); if(!ms||!ms.sessions||!ms.sessions.length){ alert('No sessions to export.'); return; }
+  const proj=projects.find(p=>p.id===ms.projectId);
+  const ws0=ms.workSchedule||{dayStart:'09:00',dayEnd:'17:00',breaks:[]};
+
+  const wb=new ExcelJS.Workbook(); wb.creator='notXL';
+  const ws=wb.addWorksheet(ms.name.slice(0,31));
+
+  const tealFill={type:'pattern',pattern:'solid',fgColor:{argb:'FF0F6E56'}};
+  const lightFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE1F5EE'}};
+  const grayFill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF2F1EE'}};
+  const whiteFont={color:{argb:'FFFFFFFF'},bold:true,size:11};
+  const boldFont={bold:true,size:10};
+  const thinBorder={top:{style:'thin',color:{argb:'FFE4E2DC'}},bottom:{style:'thin',color:{argb:'FFE4E2DC'}},left:{style:'thin',color:{argb:'FFE4E2DC'}},right:{style:'thin',color:{argb:'FFE4E2DC'}}};
+
+  // Row 1: Milestone header
+  ws.mergeCells(1,1,1,6);
+  ws.getCell(1,1).value=ms.name;
+  ws.getCell(1,1).font={bold:true,size:14,color:{argb:'FF0F6E56'}};
+  for(let c=1;c<=6;c++){ws.getCell(1,c).fill=lightFill;ws.getCell(1,c).border=thinBorder}
+
+  // Row 2: Info
+  ws.mergeCells(2,1,2,6);
+  ws.getCell(2,1).value=`${proj?proj.name+' / '+ms.site:''} | ${fmtD(ms.start)} – ${fmtD(ms.end)} | Owner: ${ms.owner||'—'} | Work hours: ${ws0.dayStart}–${ws0.dayEnd} (${(calcWorkMins(ws0)/60).toFixed(1)}h/day)`;
+  ws.getCell(2,1).font={size:10,color:{argb:'FF6B6960'}};
+  for(let c=1;c<=6;c++){ws.getCell(2,c).border=thinBorder}
+
+  // Row 3: Breaks info
+  if(ws0.breaks&&ws0.breaks.length){
+    ws.mergeCells(3,1,3,6);
+    ws.getCell(3,1).value='Breaks: '+ws0.breaks.map(b=>`${b.label||'Break'} ${b.start}–${b.end}`).join(' | ');
+    ws.getCell(3,1).font={size:9,color:{argb:'FFBA7517'}};
+    for(let c=1;c<=6;c++){ws.getCell(3,c).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFAEEDA'}};ws.getCell(3,c).border=thinBorder}
+  }
+
+  // Row 4: Column headers
+  const hdrRow=ws0.breaks&&ws0.breaks.length?4:3;
+  const hr=ws.getRow(hdrRow);
+  ['Session','Owner','Date','Start','End','Hours'].forEach((t,i)=>{
+    hr.getCell(i+1).value=t;
+    hr.getCell(i+1).fill=tealFill; hr.getCell(i+1).font=whiteFont; hr.getCell(i+1).border=thinBorder;
+  });
+
+  // Session rows
+  let curRow=hdrRow+1;
+  let totalHrs=0;
+  ms.sessions.forEach((s,i)=>{
+    const row=ws.getRow(curRow);
+    const hrs=calcSessionHrs(s.startTime,s.endTime);
+    totalHrs+=hrs;
+    const rowFill=i%2===0?{type:'pattern',pattern:'solid',fgColor:{argb:'FFFFFFFF'}}:grayFill;
+
+    row.getCell(1).value=s.name||'';
+    row.getCell(1).font=boldFont;
+    row.getCell(2).value=s.owner||'';
+    row.getCell(2).font={size:10,color:{argb:'FF6B6960'}};
+    row.getCell(3).value=s.date?new Date(s.date+'T00:00'):null;
+    row.getCell(3).numFmt='DD-MMM-YY';
+    row.getCell(4).value=s.startTime||'';
+    row.getCell(5).value=s.endTime||'';
+    row.getCell(6).value=hrs;
+    row.getCell(6).numFmt='0.0';
+    row.getCell(6).font={bold:true,size:10,color:{argb:'FF0F6E56'}};
+
+    for(let c=1;c<=6;c++){row.getCell(c).fill=rowFill;row.getCell(c).border=thinBorder}
+    row.height=22;
+    curRow++;
+  });
+
+  // Totals row
+  const totR=ws.getRow(curRow);
+  totR.getCell(1).value='TOTAL';
+  totR.getCell(1).font={bold:true,size:11,color:{argb:'FF0F6E56'}};
+  totR.getCell(5).value=ms.sessions.length+' sessions';
+  totR.getCell(5).font={size:10,color:{argb:'FF6B6960'}};
+  totR.getCell(6).value=totalHrs;
+  totR.getCell(6).numFmt='0.0';
+  totR.getCell(6).font={bold:true,size:12,color:{argb:'FF0F6E56'}};
+  for(let c=1;c<=6;c++){totR.getCell(c).fill=lightFill;totR.getCell(c).border=thinBorder}
+
+  // Column widths
+  ws.getColumn(1).width=30;ws.getColumn(2).width=22;ws.getColumn(3).width=14;
+  ws.getColumn(4).width=10;ws.getColumn(5).width=10;ws.getColumn(6).width=10;
+
+  const buf=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='notXL-'+ms.name.replace(/[^a-zA-Z0-9]/g,'-')+'-Sessions.xlsx';
+  a.click();URL.revokeObjectURL(a.href);
 }
 
 function rerender(msId){ buildHierarchy(); buildDashboard(); buildGantt(); buildTeam(); saveData() }
